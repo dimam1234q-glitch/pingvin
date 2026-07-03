@@ -33,18 +33,3 @@ externalPort = 80
 
 [nix]
 channel = "stable-25_05"
-
-[userenv]
-
-[userenv.shared]
-
-[userenv.shared."https:"]
-
-[userenv.shared."https:".""]
-
-[userenv.shared."https:".""."ep-shiny-tree-aie9arp2.apirest.c-4.us-east-1.aws.neon.tech"]
-
-[userenv.shared."https:".""."ep-shiny-tree-aie9arp2.apirest.c-4.us-east-1.aws.neon.tech".neondb]
-
-[userenv.shared."https:".""."ep-shiny-tree-aie9arp2.apirest.c-4.us-east-1.aws.neon.tech".neondb.rest]
-v1 = ""
