@@ -8,22 +8,37 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
+import { FriendsProvider } from "@/contexts/FriendsContext";
 
 SplashScreen.preventAutoHideAsync();
+
+// Configure how notifications are handled when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowList: true,
+  }),
+});
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { userStats } = useApp();
+  const { userStats, updatePushToken } = useApp();
   const router = useRouter();
   const segments = useSegments();
 
+  // Redirect to onboarding if needed
   useEffect(() => {
     if (!userStats.isLoaded) return;
     const inOnboarding = segments[0] === "onboarding";
@@ -31,6 +46,12 @@ function RootLayoutNav() {
       router.replace("/onboarding");
     }
   }, [userStats.isLoaded, userStats.onboardingDone, segments]);
+
+  // Register for push notifications
+  useEffect(() => {
+    if (!userStats.onboardingDone || Platform.OS === "web") return;
+    registerForPushNotifications(updatePushToken);
+  }, [userStats.onboardingDone]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -46,6 +67,40 @@ function RootLayoutNav() {
       />
     </Stack>
   );
+}
+
+async function registerForPushNotifications(
+  onToken: (token: string) => Promise<void>
+) {
+  try {
+    const existingPerms = await Notifications.getPermissionsAsync();
+    // expo-notifications permission shape varies by version; support both shapes
+    const isGranted = (p: unknown) => {
+      const o = p as Record<string, unknown>;
+      return o["granted"] === true || o["status"] === "granted";
+    };
+    let granted = isGranted(existingPerms);
+
+    if (!granted) {
+      const newPerms = await Notifications.requestPermissionsAsync();
+      granted = isGranted(newPerms);
+    }
+
+    if (!granted) return;
+
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+
+    if (!projectId) return;
+
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    if (token.data) {
+      await onToken(token.data);
+    }
+  } catch {
+    // Push registration is non-fatal
+  }
 }
 
 export default function RootLayout() {
@@ -71,7 +126,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AppProvider>
-                <RootLayoutNav />
+                <FriendsProvider>
+                  <RootLayoutNav />
+                </FriendsProvider>
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

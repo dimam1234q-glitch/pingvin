@@ -21,6 +21,8 @@ export interface AppSettings {
 }
 
 export interface UserStats {
+  userId: string;
+  username: string;
   name: string;
   onboardingDone: boolean;
   isLoaded: boolean;
@@ -36,6 +38,7 @@ export interface UserStats {
   solvedTasks: number;
   correctAnswers: number;
   totalAnswers: number;
+  pushToken: string | null;
 }
 
 export interface LessonResult {
@@ -51,22 +54,20 @@ export interface LessonResult {
 interface AppContextValue {
   userStats: UserStats;
   settings: AppSettings;
-  completeOnboarding: (name: string, mascot: MascotType) => Promise<void>;
-  completeNode: (
-    nodeId: string,
-    correct: number,
-    total: number
-  ) => Promise<LessonResult>;
+  completeOnboarding: (name: string, username: string, mascot: MascotType) => Promise<void>;
+  completeNode: (nodeId: string, correct: number, total: number) => Promise<LessonResult>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  updatePushToken: (token: string) => Promise<void>;
   nodeStatus: (nodeId: string) => "locked" | "active" | "done";
   weekStreak: () => boolean[];
   nextLessonId: () => string | null;
   resetProgress: () => Promise<void>;
+  syncToServer: (overrideXp?: number) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const STORAGE_KEY = "oge_app_v2";
+const STORAGE_KEY = "oge_app_v3";
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "space",
@@ -76,6 +77,8 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const DEFAULT_STATS: UserStats = {
+  userId: "",
+  username: "",
   name: "Ученик",
   onboardingDone: false,
   isLoaded: false,
@@ -91,7 +94,26 @@ const DEFAULT_STATS: UserStats = {
   solvedTasks: 0,
   correctAnswers: 0,
   totalAnswers: 0,
+  pushToken: null,
 };
+
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+function generateUsername(mascot: MascotType): string {
+  const suffix = Math.floor(1000 + Math.random() * 9000);
+  return `${mascot}_${suffix}`;
+}
+
+export function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}/api` : "/api";
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [userStats, setUserStats] = useState<UserStats>(DEFAULT_STATS);
@@ -107,7 +129,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (raw) {
         const saved = JSON.parse(raw);
         if (saved.stats) {
-          setUserStats({ ...DEFAULT_STATS, ...saved.stats, isLoaded: true });
+          const userId = saved.stats.userId || generateUUID();
+          const username =
+            saved.stats.username || generateUsername(saved.settings?.mascot ?? "penguin");
+          setUserStats({
+            ...DEFAULT_STATS,
+            ...saved.stats,
+            userId,
+            username,
+            isLoaded: true,
+          });
         } else {
           setUserStats((s) => ({ ...s, isLoaded: true }));
         }
@@ -115,7 +146,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setSettings({ ...DEFAULT_SETTINGS, ...saved.settings });
         }
       } else {
-        setUserStats((s) => ({ ...s, isLoaded: true }));
+        // Migrate from old storage key if present
+        const oldRaw = await AsyncStorage.getItem("oge_app_v2");
+        if (oldRaw) {
+          const old = JSON.parse(oldRaw);
+          const userId = generateUUID();
+          const mascot = old.settings?.mascot ?? "penguin";
+          const username = generateUsername(mascot);
+          const stats = {
+            ...DEFAULT_STATS,
+            ...(old.stats ?? {}),
+            userId,
+            username,
+            isLoaded: true,
+          };
+          const sett = { ...DEFAULT_SETTINGS, ...(old.settings ?? {}) };
+          setUserStats(stats);
+          setSettings(sett);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ stats, settings: sett }));
+        } else {
+          setUserStats((s) => ({ ...s, isLoaded: true }));
+        }
       }
     } catch {
       setUserStats((s) => ({ ...s, isLoaded: true }));
@@ -131,15 +182,94 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {}
   }
 
+  async function syncToServer(overrideXp?: number) {
+    try {
+      const stats = userStats;
+      if (!stats.userId || !stats.username) return;
+      const base = getApiBase();
+      await fetch(`${base}/users/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: stats.userId,
+          username: stats.username,
+          name: stats.name,
+          xp: overrideXp ?? stats.xp,
+          streak: stats.streak,
+          league: stats.league,
+          pushToken: stats.pushToken ?? null,
+        }),
+      });
+    } catch {
+      // Sync failure is non-fatal — app works offline
+    }
+  }
+
   async function completeOnboarding(
     name: string,
+    username: string,
     mascot: MascotType
   ): Promise<void> {
-    const newStats = { ...userStats, name: name.trim(), onboardingDone: true };
+    const userId = userStats.userId || generateUUID();
+    const finalUsername =
+      username.trim().toLowerCase() || generateUsername(mascot);
+    const newStats: UserStats = {
+      ...userStats,
+      userId,
+      username: finalUsername,
+      name: name.trim(),
+      onboardingDone: true,
+    };
     const newSettings = { ...settings, mascot };
     setUserStats(newStats);
     setSettings(newSettings);
     await saveData(newStats, newSettings);
+    // Sync to server — retry once with a new suffix if username is taken
+    try {
+      const base = getApiBase();
+      const body = { id: userId, username: finalUsername, name: name.trim(), xp: 0, streak: 0, league: 1, pushToken: null };
+      let res = await fetch(`${base}/users/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 409) {
+        const retryUsername = finalUsername.replace(/_\d+$/, "") + "_" + Math.floor(1000 + Math.random() * 9000);
+        const updatedStats = { ...newStats, username: retryUsername };
+        setUserStats(updatedStats);
+        await saveData(updatedStats, newSettings);
+        await fetch(`${base}/users/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, username: retryUsername }),
+        });
+      }
+    } catch {}
+  }
+
+  async function updatePushToken(token: string): Promise<void> {
+    const newStats = { ...userStats, pushToken: token };
+    setUserStats(newStats);
+    await saveData(newStats, settings);
+    // Immediately upload push token to server so friend notifications reach this device
+    if (newStats.userId && newStats.username) {
+      try {
+        const base = getApiBase();
+        await fetch(`${base}/users/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: newStats.userId,
+            username: newStats.username,
+            name: newStats.name,
+            xp: newStats.xp,
+            streak: newStats.streak,
+            league: newStats.league,
+            pushToken: token,
+          }),
+        });
+      } catch {}
+    }
   }
 
   const nodeStatus = useCallback(
@@ -181,26 +311,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ): Promise<LessonResult> {
     const status = nodeStatus(nodeId);
     if (status === "done") {
-      return {
-        correct,
-        total,
-        xpEarned: 0,
-        passed: true,
-        alreadyDone: true,
-        isStreakDay: false,
-      };
+      return { correct, total, xpEarned: 0, passed: true, alreadyDone: true, isStreakDay: false };
     }
 
     let xpReward = 20;
     for (const ch of chapters) {
       const node = ch.nodes.find((n) => n.id === nodeId);
-      if (node) {
-        xpReward = node.xpReward;
-        break;
-      }
+      if (node) { xpReward = node.xpReward; break; }
     }
 
-    // 80% pass threshold (strict — ensures the topic is truly understood)
     const passed = total === 0 || correct / total >= 0.8;
     const xpEarned = passed ? xpReward : Math.floor(xpReward * 0.15);
 
@@ -208,12 +327,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const hadToday = userStats.weeklyDates.includes(today);
 
     const dailyXp =
-      userStats.dailyXpDate === today
-        ? userStats.dailyXp + xpEarned
-        : xpEarned;
-    const weeklyDates = hadToday
-      ? userStats.weeklyDates
-      : [...userStats.weeklyDates, today];
+      userStats.dailyXpDate === today ? userStats.dailyXp + xpEarned : xpEarned;
+    const weeklyDates = hadToday ? userStats.weeklyDates : [...userStats.weeklyDates, today];
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -224,6 +339,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       newStreak = hadYesterday ? userStats.streak + 1 : 1;
     }
 
+    const oldXp = userStats.xp;
     const newXp = userStats.xp + xpEarned;
     let newLeague = userStats.league;
     if (newXp >= 2000) newLeague = 5;
@@ -252,9 +368,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserStats(newStats);
     await saveData(newStats, settings);
 
-    // isStreakDay = first successful lesson of today
-    const isStreakDay = passed && !hadToday;
+    // Sync XP to server and check for overtakes (non-blocking)
+    if (xpEarned > 0) {
+      (async () => {
+        try {
+          const base = getApiBase();
+          await fetch(`${base}/users/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: newStats.userId,
+              username: newStats.username,
+              name: newStats.name,
+              xp: newXp,
+              streak: newStreak,
+              league: newLeague,
+              pushToken: newStats.pushToken ?? null,
+            }),
+          });
+          await fetch(`${base}/friends/notify-overtake`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: newStats.userId, oldXp, newXp }),
+          });
+        } catch {}
+      })();
+    }
 
+    const isStreakDay = passed && !hadToday;
     return { correct, total, xpEarned, passed, alreadyDone: false, isStreakDay };
   }
 
@@ -267,8 +408,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function weekStreak(): boolean[] {
     const result: boolean[] = [];
     const today = new Date();
-    // Найдём понедельник текущей недели
-    const dayOfWeek = today.getDay(); // 0=Вс, 1=Пн, ..., 6=Сб
+    const dayOfWeek = today.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(today);
     monday.setDate(today.getDate() + mondayOffset);
@@ -291,7 +431,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function resetProgress(): Promise<void> {
-    const newStats = { ...DEFAULT_STATS, isLoaded: true };
+    const newStats = {
+      ...DEFAULT_STATS,
+      userId: userStats.userId,
+      username: userStats.username,
+      isLoaded: true,
+    };
     setUserStats(newStats);
     setSettings(DEFAULT_SETTINGS);
     await AsyncStorage.removeItem(STORAGE_KEY);
@@ -305,10 +450,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         completeOnboarding,
         completeNode,
         updateSettings,
+        updatePushToken,
         nodeStatus,
         weekStreak,
         nextLessonId,
         resetProgress,
+        syncToServer,
       }}
     >
       {children}

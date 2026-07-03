@@ -1,0 +1,1 @@
+- [Friends feature & storage key](friends-feature.md) — app uses oge_app_v3 (migrated from oge_app_v2); friends require DATABASE_URL + API server
