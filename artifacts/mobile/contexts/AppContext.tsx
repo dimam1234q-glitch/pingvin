@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { chapters } from "@/data/curriculum";
 
 export type MascotType = "penguin" | "raccoon" | "bear";
-export type ThemeId = "space" | "noir" | "nordic" | "dawn";
+export type ThemeId = "space" | "noir" | "nordic" | "dawn" | "arena";
 export type FontSize = "small" | "medium" | "large";
 
 export interface AppSettings {
@@ -70,7 +70,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 const STORAGE_KEY = "oge_app_v3";
 
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "space",
+  theme: "arena",
   fontSize: "medium",
   mascot: "penguin",
   avatarColor: "#6366F1",

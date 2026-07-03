@@ -1,4 +1,4 @@
-export type ThemeId = "space" | "noir" | "nordic" | "dawn";
+export type ThemeId = "space" | "noir" | "nordic" | "dawn" | "arena";
 
 export interface ThemeColors {
   background: string;
@@ -107,6 +107,27 @@ const THEMES: Record<ThemeId, Theme> = {
       red: "#DC2626",
       track: "#FEF3E2",
       radius: 16,
+    },
+  },
+  arena: {
+    id: "arena",
+    nameRu: "Арена",
+    preview: "#6366F1",
+    colors: {
+      background: "#0A0A14",
+      card: "#12121F",
+      primary: "#6366F1",
+      primaryForeground: "#FFFFFF",
+      secondary: "#1A1A2E",
+      foreground: "#F8FAFC",
+      subForeground: "rgba(248,250,252,0.55)",
+      mutedForeground: "rgba(248,250,252,0.35)",
+      border: "#1E1E32",
+      amber: "#F59E0B",
+      green: "#22C55E",
+      red: "#EF4444",
+      track: "#1E1E32",
+      radius: 20,
     },
   },
 };

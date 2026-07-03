@@ -11,23 +11,20 @@ import {
   Platform,
   Clipboard,
   RefreshControl,
-  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useApp } from "@/contexts/AppContext";
 import { useFriends, FriendUser } from "@/contexts/FriendsContext";
 import { useAppColors } from "@/hooks/useAppColors";
 import Mascot from "@/components/Mascot";
 
-const { width: SCREEN_W } = Dimensions.get("window");
-
 const LEAGUE_NAMES = ["Бронза", "Серебро", "Золото", "Платина", "Алмаз"];
 const LEAGUE_COLORS = ["#CD7F32", "#C0C0C0", "#FFD700", "#E5E4E2", "#B9F2FF"];
-const RANK_BG = ["#FFD70022", "#C0C0C022", "#CD7F3222"];
-const RANK_BORDER = ["#FFD70066", "#C0C0C066", "#CD7F3266"];
-const RANK_EMOJI = ["🥇", "🥈", "🥉"];
+const RANK_BG = ["#FFD700", "#C0C0C0", "#CD7F32"];
+const RANK_TEXT = ["#1a1a1a", "#1a1a1a", "#ffffff"];
 
 type Tab = "leaderboard" | "search" | "requests";
 
@@ -37,35 +34,17 @@ function Avatar({
   size = 44,
   color,
   isMascot,
+  rank,
 }: {
   name: string;
   size?: number;
   color: string;
   isMascot?: boolean;
+  rank?: number;
 }) {
-  if (isMascot) {
-    return (
-      <View
-        style={[
-          avatarStyles.circle,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: color + "22",
-            borderColor: color + "55",
-          },
-        ]}
-      >
-        <Mascot type="penguin" size={size * 0.75} mode="idle" />
-      </View>
-    );
-  }
-  const initials = name
-    .split(" ")
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .slice(0, 2)
-    .join("");
+  const rankBg = rank && rank <= 3 ? RANK_BG[rank - 1] : null;
+  const rankText = rank && rank <= 3 ? RANK_TEXT[rank - 1] : null;
+
   return (
     <View
       style={[
@@ -74,21 +53,30 @@ function Avatar({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: color + "22",
-          borderColor: color + "55",
+          backgroundColor: rankBg ? rankBg : color + "22",
+          borderColor: rankBg ? rankBg + "99" : color + "55",
         },
       ]}
     >
-      <Text style={[avatarStyles.text, { fontSize: size * 0.38, color }]}>
-        {initials || "?"}
-      </Text>
+      {isMascot ? (
+        <Mascot type="penguin" size={size * 0.9} mode="idle" />
+      ) : rank ? (
+        <Text style={[avatarStyles.rankText, { fontSize: size * 0.4, color: rankText || color }]}>
+          {rank === 1 ? "1" : rank === 2 ? "2" : "3"}
+        </Text>
+      ) : (
+        <Text style={[avatarStyles.text, { fontSize: size * 0.38, color }]}>
+          {name.slice(0, 2).toUpperCase()}
+        </Text>
+      )}
     </View>
   );
 }
 
 const avatarStyles = StyleSheet.create({
-  circle: { alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  circle: { alignItems: "center", justifyContent: "center", borderWidth: 2, overflow: "hidden" },
   text: { fontWeight: "800", fontFamily: "Inter_800ExtraBold" },
+  rankText: { fontWeight: "900", fontFamily: "Inter_900Black" },
 });
 
 function colorForName(name: string): string {
@@ -109,37 +97,40 @@ function Podium({
   myId: string;
 }) {
   if (top3.length === 0) return null;
-
-  // Render order: 2nd, 1st, 3rd
   const order = [1, 0, 2];
-  const heights = [96, 132, 78];
+  const heights = [110, 150, 90];
+  const positions = ["2 место", "1 место", "3 место"];
 
   return (
     <View style={podiumStyles.wrap}>
       {order.map((idx, pos) => {
         const user = top3[idx];
-        if (!user) return <View key={idx} style={{ width: 80 }} />;
+        if (!user) return <View key={idx} style={{ width: 90 }} />;
         const isMe = user.id === myId;
         const color = isMe ? colors.primary : colorForName(user.name);
         return (
           <View key={user.id} style={podiumStyles.pillarWrap}>
-            <Avatar name={user.name} size={54} color={color} isMascot={isMe} />
+            <Avatar name={user.name} size={64} color={color} isMascot={isMe} rank={idx + 1} />
             <View
               style={[
                 podiumStyles.pillar,
                 {
                   height: heights[pos],
-                  backgroundColor: RANK_BG[idx] || colors.card,
-                  borderColor: RANK_BORDER[idx] || colors.border,
+                  backgroundColor: idx === 0 ? "#FFD700" : idx === 1 ? "#C0C0C0" : "#CD7F32",
+                  shadowColor: idx === 0 ? "#FFD700" : idx === 1 ? "#C0C0C0" : "#CD7F32",
+                  shadowOpacity: 0.35,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 6 },
+                  elevation: 10,
                 },
               ]}
             >
-              <Text style={podiumStyles.rankEmoji}>{RANK_EMOJI[idx]}</Text>
+              <Text style={podiumStyles.positionText}>{positions[pos]}</Text>
+              <Text style={podiumStyles.xpOnPillar}>{user.xp}</Text>
             </View>
             <Text style={[podiumStyles.name, { color: colors.foreground }]} numberOfLines={1}>
               {user.name}{isMe ? " (ты)" : ""}
             </Text>
-            <Text style={[podiumStyles.xp, { color: colors.subForeground }]}>{user.xp} XP</Text>
           </View>
         );
       })}
@@ -148,19 +139,19 @@ function Podium({
 }
 
 const podiumStyles = StyleSheet.create({
-  wrap: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 14, marginBottom: 20, height: 210 },
-  pillarWrap: { width: 100, alignItems: "center" },
+  wrap: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 12, marginBottom: 24, height: 260 },
+  pillarWrap: { width: 110, alignItems: "center" },
   pillar: {
-    width: 72,
-    borderRadius: 18,
-    borderWidth: 2,
+    width: 84,
+    borderRadius: 20,
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    marginTop: 10,
   },
-  rankEmoji: { fontSize: 28 },
-  name: { fontSize: 12, fontWeight: "700", fontFamily: "Inter_700Bold", marginTop: 8, textAlign: "center" },
-  xp: { fontSize: 11, fontWeight: "600", fontFamily: "Inter_600SemiBold", marginTop: 2 },
+  positionText: { fontSize: 10, fontWeight: "800", color: "#1a1a1a", opacity: 0.7, fontFamily: "Inter_800ExtraBold" },
+  xpOnPillar: { fontSize: 18, fontWeight: "900", color: "#1a1a1a", fontFamily: "Inter_900Black" },
+  name: { fontSize: 13, fontWeight: "700", fontFamily: "Inter_700Bold", marginTop: 10, textAlign: "center" },
 });
 
 // ── Leaderboard row ────────────────────────────────────────────────────────────
@@ -187,15 +178,14 @@ function LeaderboardRow({
       style={[
         lbStyles.row,
         {
-          backgroundColor: isMe ? colors.primary + "18" : colors.card,
-          borderColor: isMe ? colors.primary + "50" : colors.border,
-          paddingTop: top3 ? 10 : 12,
+          backgroundColor: isMe ? colors.primary + "15" : colors.card,
+          borderColor: isMe ? colors.primary + "40" : colors.border,
         },
       ]}
     >
       <View style={lbStyles.rankWrap}>
         {top3 ? (
-          <Text style={lbStyles.rankEmoji}>{RANK_EMOJI[rank - 1]}</Text>
+          <Text style={lbStyles.rankEmoji}>{rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"}</Text>
         ) : (
           <Text style={[lbStyles.rankNum, { color: colors.mutedForeground }]}>{rank}</Text>
         )}
@@ -204,13 +194,10 @@ function LeaderboardRow({
       <View style={lbStyles.info}>
         <View style={lbStyles.nameRow}>
           <Text style={[lbStyles.name, { color: colors.foreground }]} numberOfLines={1}>
-            {user.name}
-            {isMe ? " (ты)" : ""}
+            {user.name}{isMe ? " (ты)" : ""}
           </Text>
           <View style={[lbStyles.leagueBadge, { backgroundColor: leagueColor + "22" }]}>
-            <Text style={[lbStyles.leagueText, { color: leagueColor }]}>
-              {LEAGUE_NAMES[(user.league ?? 1) - 1]}
-            </Text>
+            <Text style={[lbStyles.leagueText, { color: leagueColor }]}>{LEAGUE_NAMES[(user.league ?? 1) - 1]}</Text>
           </View>
         </View>
         <View style={lbStyles.barRow}>
@@ -222,9 +209,7 @@ function LeaderboardRow({
               ]}
             />
           </View>
-          <Text style={[lbStyles.xp, { color: isMe ? colors.primary : colors.foreground }]}>
-            {user.xp}
-          </Text>
+          <Text style={[lbStyles.xp, { color: isMe ? colors.primary : colors.foreground }]}>{user.xp}</Text>
         </View>
       </View>
     </View>
@@ -236,11 +221,11 @@ const lbStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 12,
+    padding: 13,
     borderRadius: 18,
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
-  rankWrap: { width: 32, alignItems: "center" },
+  rankWrap: { width: 30, alignItems: "center" },
   rankEmoji: { fontSize: 22 },
   rankNum: { fontSize: 15, fontWeight: "800", fontFamily: "Inter_800ExtraBold" },
   info: { flex: 1, gap: 6 },
@@ -249,12 +234,12 @@ const lbStyles = StyleSheet.create({
   leagueBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   leagueText: { fontSize: 10, fontWeight: "800" },
   barRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  track: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
+  track: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 3 },
-  xp: { fontSize: 14, fontWeight: "800", fontFamily: "Inter_800ExtraBold", minWidth: 50, textAlign: "right" },
+  xp: { fontSize: 14, fontWeight: "800", fontFamily: "Inter_800ExtraBold", minWidth: 45, textAlign: "right" },
 });
 
-// ── Friend card (search results / friends list) ─────────────────────────────────
+// ── Friend card ────────────────────────────────────────────────────────────────
 function FriendCard({
   friend,
   myXp,
@@ -282,13 +267,9 @@ function FriendCard({
       <Avatar name={friend.name} size={48} color={avatarColor} />
       <View style={fcStyles.info}>
         <View style={fcStyles.nameRow}>
-          <Text style={[fcStyles.name, { color: colors.foreground }]} numberOfLines={1}>
-            {friend.name}
-          </Text>
+          <Text style={[fcStyles.name, { color: colors.foreground }]} numberOfLines={1}>{friend.name}</Text>
           <View style={[fcStyles.leagueBadge, { backgroundColor: leagueColor + "22" }]}>
-            <Text style={[fcStyles.leagueText, { color: leagueColor }]}>
-              {LEAGUE_NAMES[(friend.league ?? 1) - 1]}
-            </Text>
+            <Text style={[fcStyles.leagueText, { color: leagueColor }]}>{LEAGUE_NAMES[(friend.league ?? 1) - 1]}</Text>
           </View>
         </View>
         <Text style={[fcStyles.username, { color: colors.mutedForeground }]}>@{friend.username}</Text>
@@ -298,9 +279,7 @@ function FriendCard({
           {diff !== 0 && (
             <View style={[fcStyles.diffBadge, { backgroundColor: diff > 0 ? colors.red + "18" : colors.green + "18" }]}>
               <Feather name={diff > 0 ? "trending-up" : "trending-down"} size={11} color={diff > 0 ? colors.red : colors.green} />
-              <Text style={[fcStyles.diffText, { color: diff > 0 ? colors.red : colors.green }]}>
-                {diff > 0 ? `+${diff}` : diff} от тебя
-              </Text>
+              <Text style={[fcStyles.diffText, { color: diff > 0 ? colors.red : colors.green }]}>{diff > 0 ? `+${diff}` : diff} от тебя</Text>
             </View>
           )}
         </View>
@@ -313,14 +292,7 @@ function FriendCard({
 }
 
 const fcStyles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1.5,
-  },
+  card: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 18, borderWidth: 1 },
   info: { flex: 1, gap: 3 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   name: { flex: 1, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" },
@@ -355,16 +327,10 @@ function RequestCard({
         <Text style={[reqStyles.username, { color: colors.mutedForeground }]}>@{user.username} · {user.xp} XP</Text>
       </View>
       <View style={reqStyles.btns}>
-        <TouchableOpacity
-          onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAccept(); }}
-          style={[reqStyles.btn, { backgroundColor: colors.green }]}
-        >
+        <TouchableOpacity onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAccept(); }} style={[reqStyles.btn, { backgroundColor: colors.green }]}>
           <Feather name="check" size={16} color="white" />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onDecline(); }}
-          style={[reqStyles.btn, { backgroundColor: colors.border }]}
-        >
+        <TouchableOpacity onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onDecline(); }} style={[reqStyles.btn, { backgroundColor: colors.border }]}>
           <Feather name="x" size={16} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
@@ -373,7 +339,7 @@ function RequestCard({
 }
 
 const reqStyles = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 18, borderWidth: 1.5 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 18, borderWidth: 1 },
   info: { flex: 1, gap: 2 },
   name: { fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" },
   username: { fontSize: 12, fontFamily: "Inter_500Medium" },
@@ -461,38 +427,25 @@ export default function FriendsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: pt + 10 }]}>
-        <View>
+      <LinearGradient colors={[colors.background, colors.background]} style={[styles.header, { paddingTop: pt + 12 }]}>
+        <View style={styles.headerLeft}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Друзья</Text>
           <Text style={[styles.headerSubtitle, { color: colors.subForeground }]}>Соревнуйся и мотивируй друг друга</Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <TouchableOpacity onPress={copyUsername} style={[styles.usernameBadge, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "35" }]}>
-            <Text style={[styles.usernameText, { color: colors.primary }]}>@{userStats.username}</Text>
-            <Feather name="copy" size={12} color={colors.primary} />
-          </TouchableOpacity>
-          {pendingRequests.length > 0 && activeTab !== "requests" && (
-            <TouchableOpacity onPress={() => setActiveTab("requests")} style={[styles.notifBell, { backgroundColor: colors.red + "18" }]}>
-              <Feather name="bell" size={18} color={colors.red} />
-              <View style={[styles.badge, { backgroundColor: colors.red }]}>
-                <Text style={styles.badgeText}>{pendingRequests.length}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+        <TouchableOpacity onPress={copyUsername} style={[styles.usernameBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Text style={[styles.usernameText, { color: colors.foreground }]}>@{userStats.username}</Text>
+          <Feather name="copy" size={12} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </LinearGradient>
 
-      {/* Offline banner */}
       {!isBackendAvailable && (
-        <View style={[styles.offlineBanner, { backgroundColor: colors.amber + "18", borderColor: colors.amber + "30" }]}>
+        <View style={[styles.offlineBanner, { backgroundColor: colors.amber + "15", borderColor: colors.amber + "30" }]}>
           <Feather name="wifi-off" size={14} color={colors.amber} />
           <Text style={[styles.offlineText, { color: colors.amber }]}>Сервер недоступен. Функции друзей требуют подключения.</Text>
         </View>
       )}
 
-      {/* Tabs */}
-      <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.tabBar, { backgroundColor: colors.secondary }]}>
         {[
           { key: "leaderboard" as Tab, label: "Рейтинг", icon: "award" },
           { key: "search" as Tab, label: "Поиск", icon: "search" },
@@ -525,7 +478,6 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {/* ── LEADERBOARD TAB ── */}
         {activeTab === "leaderboard" && (
           <View style={styles.section}>
             {leaderboard.length === 0 ? (
@@ -540,21 +492,13 @@ export default function FriendsScreen() {
                   </View>
                 )}
                 {rest.map((u, i) => (
-                  <LeaderboardRow
-                    key={u.id}
-                    rank={i + 4}
-                    user={u}
-                    isMe={u.id === userStats.userId}
-                    maxXp={maxXp}
-                    colors={colors}
-                  />
+                  <LeaderboardRow key={u.id} rank={i + 4} user={u} isMe={u.id === userStats.userId} maxXp={maxXp} colors={colors} />
                 ))}
               </>
             )}
           </View>
         )}
 
-        {/* ── SEARCH TAB ── */}
         {activeTab === "search" && (
           <View style={styles.section}>
             <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -641,7 +585,6 @@ export default function FriendsScreen() {
           </View>
         )}
 
-        {/* ── REQUESTS TAB ── */}
         {activeTab === "requests" && (
           <View style={styles.section}>
             {isLoading ? (
@@ -686,42 +629,41 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
+  headerLeft: { gap: 2, flex: 1 },
   headerTitle: { fontSize: 30, fontWeight: "800", fontFamily: "Inter_800ExtraBold" },
-  headerSubtitle: { fontSize: 13, fontFamily: "Inter_500Medium", marginTop: 2 },
+  headerSubtitle: { fontSize: 13, fontFamily: "Inter_500Medium" },
   usernameBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 12,
     borderWidth: 1,
   },
   usernameText: { fontSize: 12, fontWeight: "700", fontFamily: "Inter_700Bold" },
-  notifBell: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  badge: { position: "absolute", top: 4, right: 4, minWidth: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  badgeText: { color: "white", fontSize: 10, fontWeight: "800" },
   offlineBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 10, padding: 10, borderRadius: 12, borderWidth: 1 },
   offlineText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
-  tabBar: { flexDirection: "row", marginHorizontal: 20, marginBottom: 14, borderRadius: 16, borderWidth: 1.5, padding: 4, gap: 3 },
+  tabBar: { flexDirection: "row", marginHorizontal: 20, marginBottom: 14, borderRadius: 16, padding: 4, gap: 3 },
   tabBtn: { flex: 1, borderRadius: 12, paddingVertical: 9 },
   tabInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   tabLabel: { fontSize: 12, fontWeight: "700", fontFamily: "Inter_700Bold" },
   tabBadge: { minWidth: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  badgeText: { fontSize: 10, fontWeight: "800" },
   content: { paddingHorizontal: 20, gap: 10 },
   section: { gap: 10 },
   sectionLabel: { fontSize: 13, fontWeight: "700", fontFamily: "Inter_700Bold", marginTop: 6, marginBottom: 2 },
   hintCard: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 14, borderWidth: 1 },
   hintText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 18, borderWidth: 1.5 },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 18, borderWidth: 1 },
   searchInput: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular" },
   searchBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 18 },
   searchBtnText: { fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" },
-  notFoundCard: { alignItems: "center", gap: 10, paddingVertical: 36, borderRadius: 18, borderWidth: 1.5 },
+  notFoundCard: { alignItems: "center", gap: 10, paddingVertical: 36, borderRadius: 18, borderWidth: 1 },
   notFoundText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  resultCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 18, borderWidth: 1.5 },
+  resultCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 18, borderWidth: 1 },
   resultName: { fontSize: 16, fontWeight: "700", fontFamily: "Inter_700Bold" },
   resultUsername: { fontSize: 12, fontFamily: "Inter_500Medium" },
   resultXp: { fontSize: 13, fontWeight: "600" },
