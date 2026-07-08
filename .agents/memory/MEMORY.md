@@ -1,1 +1,1 @@
-- [Friends feature & storage key](friends-feature.md) — app uses oge_app_v3 (migrated from oge_app_v2); friends require DATABASE_URL + API server
+- [Group rating replaces friends](group-rating.md) — app now uses group-based leaderboard (Group 1 / Group 2 + overall stream) instead of friends; onboarding includes a required group selection step

@@ -24,9 +24,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "map", selected: "map.fill" }} />
         <Label>Путь</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="friends">
-        <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
-        <Label>Друзья</Label>
+      <NativeTabs.Trigger name="rating">
+        <Icon sf={{ default: "trophy", selected: "trophy.fill" }} />
+        <Label>Рейтинг</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
@@ -101,14 +101,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="friends"
+        name="rating"
         options={{
-          title: "Друзья",
+          title: "Рейтинг",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="person.2" tintColor={color} size={24} />
+              <SymbolView name="trophy" tintColor={color} size={24} />
             ) : (
-              <Feather name="users" size={22} color={color} />
+              <Feather name="bar-chart-2" size={22} color={color} />
             ),
         }}
       />

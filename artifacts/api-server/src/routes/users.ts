@@ -17,10 +17,11 @@ function dbGuard(res: any, err: unknown): boolean {
 router.post("/users/sync", async (req, res) => {
   try {
     const db = getDb();
-    const { id, username, name, xp, streak, league, pushToken } = req.body as {
+    const { id, username, name, group, xp, streak, league, pushToken } = req.body as {
       id: string;
       username: string;
       name: string;
+      group?: string | null;
       xp?: number;
       streak?: number;
       league?: number;
@@ -33,6 +34,7 @@ router.post("/users/sync", async (req, res) => {
     }
 
     const normalizedUsername = username.toLowerCase().trim();
+    const groupValue = group ? group.trim() : null;
 
     const existing = await db
       .select()
@@ -44,6 +46,7 @@ router.post("/users/sync", async (req, res) => {
         .update(usersTable)
         .set({
           name,
+          group: groupValue,
           xp: xp ?? 0,
           streak: streak ?? 0,
           league: league ?? 1,
@@ -67,6 +70,7 @@ router.post("/users/sync", async (req, res) => {
         id,
         username: normalizedUsername,
         name,
+        group: groupValue,
         xp: xp ?? 0,
         streak: streak ?? 0,
         league: league ?? 1,
@@ -75,41 +79,6 @@ router.post("/users/sync", async (req, res) => {
     }
 
     res.json({ ok: true });
-  } catch (err) {
-    if (dbGuard(res, err)) return;
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-// GET /api/users/search?username=xxx
-router.get("/users/search", async (req, res) => {
-  try {
-    const db = getDb();
-    const { username } = req.query;
-
-    if (!username || typeof username !== "string") {
-      res.status(400).json({ error: "username query param required" });
-      return;
-    }
-
-    const users = await db
-      .select({
-        id: usersTable.id,
-        username: usersTable.username,
-        name: usersTable.name,
-        xp: usersTable.xp,
-        streak: usersTable.streak,
-        league: usersTable.league,
-      })
-      .from(usersTable)
-      .where(eq(usersTable.username, username.toLowerCase().trim()));
-
-    if (users.length === 0) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-
-    res.json(users[0]);
   } catch (err) {
     if (dbGuard(res, err)) return;
     res.status(500).json({ error: String(err) });

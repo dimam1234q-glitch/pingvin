@@ -51,6 +51,11 @@ const PAGES = [
     subtitle: "Он будет сопровождать тебя на пути к пятёрке",
     iconName: "heart" as const,
   },
+  {
+    title: "Выбери свою\nгруппу",
+    subtitle: "Соревнуйся с одноклассниками и смотри общий рейтинг потока",
+    iconName: "users" as const,
+  },
 ];
 
 const COLORS = THEMES.space.colors;
@@ -63,27 +68,37 @@ function generateUsername(mascot: MascotType): string {
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { completeOnboarding } = useApp();
+  const { userStats, settings, completeOnboarding } = useApp();
   const scrollRef = useRef<ScrollView>(null);
 
   const [page, setPage] = useState(0);
-  const [selectedMascot, setSelectedMascot] = useState<MascotType>("penguin");
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState(() => generateUsername("penguin"));
+  const [selectedMascot, setSelectedMascot] = useState<MascotType>(settings.mascot ?? "penguin");
+  const [name, setName] = useState(userStats.name || "");
+  const [username, setUsername] = useState(() => userStats.username || generateUsername("penguin"));
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [nameError, setNameError] = useState(false);
+  const [groupError, setGroupError] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
 
   const isLastPage = page === PAGES.length - 1;
 
   const goNext = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (page === 2) {
+      // Mascot page: name and username are required before continuing
+      if (!name.trim()) {
+        setNameError(true);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+    }
     if (!isLastPage) {
       const next = page + 1;
       setPage(next);
       scrollRef.current?.scrollTo({ x: next * width, animated: true });
     } else {
-      if (!name.trim()) {
-        setNameError(true);
+      if (!selectedGroup) {
+        setGroupError(true);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
@@ -91,11 +106,19 @@ export default function OnboardingScreen() {
     }
   };
 
+  const goBack = async () => {
+    if (page === 0) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const prev = page - 1;
+    setPage(prev);
+    scrollRef.current?.scrollTo({ x: prev * width, animated: true });
+  };
+
   const finish = async () => {
     if (isFinishing) return;
     setIsFinishing(true);
     const finalUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "") || generateUsername(selectedMascot);
-    await completeOnboarding(name.trim(), finalUsername, selectedMascot);
+    await completeOnboarding(name.trim(), finalUsername, selectedMascot, selectedGroup);
     router.replace("/(tabs)");
   };
 
@@ -138,6 +161,17 @@ export default function OnboardingScreen() {
                 title={p.title}
                 subtitle={p.subtitle}
               />
+            ) : idx === 3 ? (
+              <GroupPickerPage
+                selectedGroup={selectedGroup}
+                onSelect={(g) => {
+                  setSelectedGroup(g);
+                  setGroupError(false);
+                }}
+                groupError={groupError}
+                title={p.title}
+                subtitle={p.subtitle}
+              />
             ) : (
               <IllustrationPage page={p} idx={idx} selectedMascot={selectedMascot} />
             )}
@@ -168,18 +202,27 @@ export default function OnboardingScreen() {
           { paddingBottom: insets.bottom + 24 + (Platform.OS === "web" ? 34 : 0) },
         ]}
       >
-        {isLastPage && !name.trim() && nameError && (
+        {isLastPage && groupError && (
           <Animated.View style={styles.errorBanner}>
             <Feather name="alert-circle" size={14} color="#EF4444" />
-            <Text style={styles.errorBannerText}>Введи своё имя, чтобы продолжить</Text>
+            <Text style={styles.errorBannerText}>Выбери группу, чтобы продолжить</Text>
           </Animated.View>
         )}
-        <GradientButton
-          label={isLastPage ? "Начать учиться" : "Далее"}
-          iconName={isLastPage ? "arrow-right" : "chevron-right"}
-          onPress={goNext}
-          loading={isFinishing}
-        />
+        <View style={styles.footerButtons}>
+          {page > 0 && (
+            <TouchableOpacity onPress={goBack} style={[styles.backBtn, { backgroundColor: COLORS.card, borderColor: COLORS.border }]}>
+              <Feather name="arrow-left" size={18} color={COLORS.foreground} />
+            </TouchableOpacity>
+          )}
+          <View style={page > 0 ? styles.nextBtnWithBack : styles.nextBtnFull}>
+            <GradientButton
+              label={isLastPage ? "Начать учиться" : "Далее"}
+              iconName={isLastPage ? "arrow-right" : "chevron-right"}
+              onPress={goNext}
+              loading={isFinishing}
+            />
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -205,6 +248,89 @@ function IllustrationPage({
       <Text style={styles.title}>{page.title}</Text>
       <Text style={styles.subtitle}>{page.subtitle}</Text>
     </View>
+  );
+}
+
+function GroupPickerPage({
+  selectedGroup,
+  onSelect,
+  groupError,
+  title,
+  subtitle,
+}: {
+  selectedGroup: string;
+  onSelect: (g: string) => void;
+  groupError: boolean;
+  title: string;
+  subtitle: string;
+}) {
+  const shakeX = useSharedValue(0);
+
+  const shake = () => {
+    shakeX.value = withSequence(
+      withTiming(8, { duration: 60 }),
+      withTiming(-8, { duration: 60 }),
+      withTiming(8, { duration: 60 }),
+      withTiming(-8, { duration: 60 }),
+      withTiming(0, { duration: 60 })
+    );
+  };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  React.useEffect(() => {
+    if (groupError) shake();
+  }, [groupError]);
+
+  return (
+    <ScrollView
+      style={{ flex: 1, width: "100%" }}
+      contentContainerStyle={styles.pageInner}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
+
+      <Animated.View style={animatedStyle}>
+        <View style={styles.groupRow}>
+          {["1", "2"].map((g) => (
+            <TouchableOpacity
+              key={g}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onSelect(g);
+              }}
+              style={[
+                styles.groupCard,
+                {
+                  borderColor: selectedGroup === g ? COLORS.primary : COLORS.border,
+                  backgroundColor: selectedGroup === g ? COLORS.primary + "15" : COLORS.card,
+                },
+              ]}
+            >
+              <View style={styles.groupBadge}>
+                <Text style={styles.groupBadgeText}>{g}</Text>
+              </View>
+              <Text style={styles.groupName}>Группа {g}</Text>
+              {selectedGroup === g && (
+                <View style={styles.selectedBadge}>
+                  <Feather name="check" size={12} color="white" />
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+        {groupError && (
+          <View style={styles.groupErrorRow}>
+            <Feather name="alert-circle" size={14} color="#EF4444" />
+            <Text style={styles.groupErrorText}>Выбери группу, чтобы продолжить</Text>
+          </View>
+        )}
+      </Animated.View>
+    </ScrollView>
   );
 }
 
@@ -411,6 +537,21 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     gap: 10,
   },
+  footerButtons: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  backBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  nextBtnFull: { flex: 1 },
+  nextBtnWithBack: { flex: 1 },
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -528,5 +669,51 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.mutedForeground,
     fontFamily: "Inter_400Regular",
+  },
+  groupRow: {
+    flexDirection: "row" as const,
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  groupCard: {
+    flex: 1,
+    alignItems: "center" as const,
+    padding: 18,
+    borderRadius: 18,
+    borderWidth: 2,
+    gap: 10,
+    position: "relative" as const,
+  },
+  groupBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary + "20",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  groupBadgeText: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: COLORS.primary,
+    fontFamily: "Inter_800ExtraBold",
+  },
+  groupName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.foreground,
+    fontFamily: "Inter_700Bold",
+  },
+  groupErrorRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginTop: 8,
+  },
+  groupErrorText: {
+    fontSize: 13,
+    color: "#EF4444",
+    fontFamily: "Inter_500Medium",
   },
 });

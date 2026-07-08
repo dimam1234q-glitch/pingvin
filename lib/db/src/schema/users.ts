@@ -6,6 +6,7 @@ export const usersTable = pgTable("users", {
   id: text("id").primaryKey(), // UUID generated client-side
   username: text("username").notNull().unique(),
   name: text("name").notNull(),
+  group: text("group"), // e.g. "1" or "2"
   xp: integer("xp").notNull().default(0),
   streak: integer("streak").notNull().default(0),
   league: integer("league").notNull().default(1),

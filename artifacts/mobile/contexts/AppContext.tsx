@@ -24,6 +24,7 @@ export interface UserStats {
   userId: string;
   username: string;
   name: string;
+  group: string | null;
   onboardingDone: boolean;
   isLoaded: boolean;
   xp: number;
@@ -54,7 +55,7 @@ export interface LessonResult {
 interface AppContextValue {
   userStats: UserStats;
   settings: AppSettings;
-  completeOnboarding: (name: string, username: string, mascot: MascotType) => Promise<void>;
+  completeOnboarding: (name: string, username: string, mascot: MascotType, group: string) => Promise<void>;
   completeNode: (nodeId: string, correct: number, total: number) => Promise<LessonResult>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   updatePushToken: (token: string) => Promise<void>;
@@ -80,6 +81,7 @@ const DEFAULT_STATS: UserStats = {
   userId: "",
   username: "",
   name: "Ученик",
+  group: null,
   onboardingDone: false,
   isLoaded: false,
   xp: 0,
@@ -194,6 +196,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           id: stats.userId,
           username: stats.username,
           name: stats.name,
+          group: stats.group,
           xp: overrideXp ?? stats.xp,
           streak: stats.streak,
           league: stats.league,
@@ -208,16 +211,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function completeOnboarding(
     name: string,
     username: string,
-    mascot: MascotType
+    mascot: MascotType,
+    group: string
   ): Promise<void> {
     const userId = userStats.userId || generateUUID();
     const finalUsername =
       username.trim().toLowerCase() || generateUsername(mascot);
+    const finalGroup = group.trim();
     const newStats: UserStats = {
       ...userStats,
       userId,
       username: finalUsername,
       name: name.trim(),
+      group: finalGroup,
       onboardingDone: true,
     };
     const newSettings = { ...settings, mascot };
@@ -227,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Sync to server — retry once with a new suffix if username is taken
     try {
       const base = getApiBase();
-      const body = { id: userId, username: finalUsername, name: name.trim(), xp: 0, streak: 0, league: 1, pushToken: null };
+      const body = { id: userId, username: finalUsername, name: name.trim(), group: finalGroup, xp: 0, streak: 0, league: 1, pushToken: null };
       let res = await fetch(`${base}/users/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -262,6 +268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             id: newStats.userId,
             username: newStats.username,
             name: newStats.name,
+            group: newStats.group,
             xp: newStats.xp,
             streak: newStats.streak,
             league: newStats.league,
@@ -368,7 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserStats(newStats);
     await saveData(newStats, settings);
 
-    // Sync XP to server and check for overtakes (non-blocking)
+    // Sync XP to server (non-blocking)
     if (xpEarned > 0) {
       (async () => {
         try {
@@ -380,16 +387,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
               id: newStats.userId,
               username: newStats.username,
               name: newStats.name,
+              group: newStats.group,
               xp: newXp,
               streak: newStreak,
               league: newLeague,
               pushToken: newStats.pushToken ?? null,
             }),
-          });
-          await fetch(`${base}/friends/notify-overtake`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: newStats.userId, oldXp, newXp }),
           });
         } catch {}
       })();

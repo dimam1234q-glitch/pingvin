@@ -17,7 +17,6 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
-import { FriendsProvider } from "@/contexts/FriendsContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,14 +37,15 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
 
-  // Redirect to onboarding if needed
+  // Redirect to onboarding if needed (also if group is missing after onboarding)
   useEffect(() => {
     if (!userStats.isLoaded) return;
     const inOnboarding = segments[0] === "onboarding";
-    if (!userStats.onboardingDone && !inOnboarding) {
+    const needsOnboarding = !userStats.onboardingDone || !userStats.group;
+    if (needsOnboarding && !inOnboarding) {
       router.replace("/onboarding");
     }
-  }, [userStats.isLoaded, userStats.onboardingDone, segments]);
+  }, [userStats.isLoaded, userStats.onboardingDone, userStats.group, segments]);
 
   // Register for push notifications
   useEffect(() => {
@@ -126,9 +126,7 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AppProvider>
-                <FriendsProvider>
-                  <RootLayoutNav />
-                </FriendsProvider>
+                <RootLayoutNav />
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
