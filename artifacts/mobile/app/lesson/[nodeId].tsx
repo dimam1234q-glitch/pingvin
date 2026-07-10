@@ -38,7 +38,7 @@ export default function LessonScreen() {
   const colors = useAppColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { settings, userStats, completeNode, nodeStatus } = useApp();
+  const { settings, userStats, completeNode, nodeStatus, fontScale } = useApp();
 
   const node = findNode(nodeId);
 
@@ -202,6 +202,7 @@ export default function LessonScreen() {
           node={node}
           colors={colors}
           pb={pb}
+          fontScale={fontScale}
           onFinish={handleFinishTheory}
         />
       )}
@@ -212,6 +213,7 @@ export default function LessonScreen() {
           colors={colors}
           settings={settings}
           pb={pb}
+          fontScale={fontScale}
           onStart={handleStartQuiz}
         />
       )}
@@ -226,11 +228,11 @@ export default function LessonScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Text
-              style={[styles.questionCounter, { color: colors.subForeground }]}
+              style={[styles.questionCounter, { color: colors.subForeground, fontSize: 13 * fontScale }]}
             >
               Вопрос {questionIdx + 1} из {totalQ}
             </Text>
-            <Text style={[styles.questionText, { color: colors.foreground }]}>
+            <Text style={[styles.questionText, { color: colors.foreground, fontSize: 20 * fontScale, lineHeight: 28 * fontScale }]}>
               {currentQ.text}
             </Text>
 
@@ -270,6 +272,7 @@ export default function LessonScreen() {
                     isCorrect={isCorrect}
                     isSelected={isSelected}
                     colors={colors}
+                    fontScale={fontScale}
                     onPress={() => {
                       if (confirmed) return;
                       if (Platform.OS !== "web") {
@@ -287,6 +290,7 @@ export default function LessonScreen() {
                 explanation={currentQ.explanation}
                 isCorrect={selected === currentQ.correct}
                 colors={colors}
+                fontScale={fontScale}
               />
             )}
           </ScrollView>
@@ -341,11 +345,11 @@ export default function LessonScreen() {
 // ─────────────────────────────────────────────
 
 function OptionButton({
-  opt, index, bg, borderColor, textColor, confirmed, isCorrect, isSelected, colors, onPress,
+  opt, index, bg, borderColor, textColor, confirmed, isCorrect, isSelected, colors, fontScale, onPress,
 }: {
   opt: string; index: number; bg: string; borderColor: string; textColor: string;
   confirmed: boolean; isCorrect: boolean; isSelected: boolean;
-  colors: ReturnType<typeof useAppColors>; onPress: () => void;
+  colors: ReturnType<typeof useAppColors>; fontScale: number; onPress: () => void;
 }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0);
@@ -381,7 +385,7 @@ function OptionButton({
         ]}
         activeOpacity={0.8}
       >
-        <Text style={[styles.optionText, { color: textColor }]}>{opt}</Text>
+        <Text style={[styles.optionText, { color: textColor, fontSize: 16 * fontScale }]}>{opt}</Text>
         {confirmed && isCorrect && (
           <Feather name="check-circle" size={18} color={colors.green} />
         )}
@@ -394,11 +398,12 @@ function OptionButton({
 }
 
 function TheoryContent({
-  node, colors, pb, onFinish,
+  node, colors, pb, fontScale, onFinish,
 }: {
   node: ReturnType<typeof findNode>;
   colors: ReturnType<typeof useAppColors>;
   pb: number;
+  fontScale: number;
   onFinish: () => void;
 }) {
   if (!node) return null;
@@ -416,12 +421,12 @@ function TheoryContent({
           style={[styles.theoryBanner, { borderRadius: 16 }]}
         >
           <Feather name="book-open" size={28} color="white" />
-          <Text style={styles.theoryBannerTitle}>{node.theoryTitle}</Text>
+          <Text style={[styles.theoryBannerTitle, { fontSize: 20 * fontScale }]}>{node.theoryTitle}</Text>
         </LinearGradient>
 
         <VideoPlayer videoUrl={node.videoUrl} title={node.theoryTitle} />
 
-        <Text style={[styles.theoryText, { color: colors.subForeground }]}>
+        <Text style={[styles.theoryText, { color: colors.subForeground, fontSize: 16 * fontScale, lineHeight: 26 * fontScale }]}>
           {node.theoryContent}
         </Text>
 
@@ -433,7 +438,7 @@ function TheoryContent({
             ]}
           >
             <Text
-              style={[styles.keyPointsTitle, { color: colors.foreground }]}
+              style={[styles.keyPointsTitle, { color: colors.foreground, fontSize: 14 * fontScale }]}
             >
               Ключевые формулы
             </Text>
@@ -448,7 +453,7 @@ function TheoryContent({
                 <Text
                   style={[
                     styles.keyPointText,
-                    { color: colors.subForeground },
+                    { color: colors.subForeground, fontSize: 14 * fontScale, lineHeight: 20 * fontScale },
                   ]}
                 >
                   {kp}
@@ -469,12 +474,13 @@ function TheoryContent({
 type MascotType = "penguin" | "raccoon" | "bear";
 
 function QuizIntro({
-  node, colors, settings, pb, onStart,
+  node, colors, settings, pb, fontScale, onStart,
 }: {
   node: ReturnType<typeof findNode>;
   colors: ReturnType<typeof useAppColors>;
   settings: { mascot: MascotType };
   pb: number;
+  fontScale: number;
   onStart: () => void;
 }) {
   if (!node) return null;
@@ -511,10 +517,10 @@ function QuizIntro({
         <Mascot type={settings.mascot} size={120} mode="idle" />
       </Animated.View>
       <Animated.View style={[styles.introTextWrap, contentStyle]}>
-        <Text style={[styles.introType, { color: colors.primary }]}>
+        <Text style={[styles.introType, { color: colors.primary, fontSize: 28 * fontScale }]}>
           {typeLabel}
         </Text>
-        <Text style={[styles.introDesc, { color: colors.subForeground }]}>
+        <Text style={[styles.introDesc, { color: colors.subForeground, fontSize: 16 * fontScale, lineHeight: 24 * fontScale }]}>
           {typeDesc}
         </Text>
         <View
@@ -591,11 +597,12 @@ function QuizIntro({
 }
 
 function ExplanationCard({
-  explanation, isCorrect, colors,
+  explanation, isCorrect, colors, fontScale,
 }: {
   explanation: string;
   isCorrect: boolean;
   colors: ReturnType<typeof useAppColors>;
+  fontScale: number;
 }) {
   const scale = useSharedValue(0.85);
   const opacity = useSharedValue(0);
@@ -631,7 +638,7 @@ function ExplanationCard({
         <Text
           style={[
             styles.explanationText,
-            { color: isCorrect ? colors.green : colors.red },
+            { color: isCorrect ? colors.green : colors.red, fontSize: 14 * fontScale, lineHeight: 20 * fontScale },
           ]}
         >
           {explanation}

@@ -52,9 +52,16 @@ export interface LessonResult {
   isStreakDay: boolean;
 }
 
+export const FONT_SCALE_MAP: Record<FontSize, number> = {
+  small: 0.88,
+  medium: 1,
+  large: 1.18,
+};
+
 interface AppContextValue {
   userStats: UserStats;
   settings: AppSettings;
+  fontScale: number;
   completeOnboarding: (name: string, username: string, mascot: MascotType, group: string) => Promise<void>;
   completeNode: (nodeId: string, correct: number, total: number) => Promise<LessonResult>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
@@ -450,6 +457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         userStats,
         settings,
+        fontScale: FONT_SCALE_MAP[settings.fontSize],
         completeOnboarding,
         completeNode,
         updateSettings,
