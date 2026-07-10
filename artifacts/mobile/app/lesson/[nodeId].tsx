@@ -226,64 +226,77 @@ export default function LessonScreen() {
               { paddingBottom: pb + 20 },
             ]}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <Text
               style={[styles.questionCounter, { color: colors.subForeground, fontSize: 13 * fontScale }]}
             >
               Вопрос {questionIdx + 1} из {totalQ}
             </Text>
-            <Text style={[styles.questionText, { color: colors.foreground, fontSize: 20 * fontScale, lineHeight: 28 * fontScale }]}>
-              {currentQ.text}
-            </Text>
 
-            <View style={styles.optionsContainer}>
-              {currentQ.options.map((opt, oi) => {
-                const isSelected = selected === opt;
-                const isCorrect = opt === currentQ.correct;
-                let borderColor = colors.border;
-                let bg = colors.card;
-                let textColor = colors.foreground;
+            {/* dispatch to the right question-type UI */}
+            {(!currentQ.type || currentQ.type === "multipleChoice") && (
+              <>
+                <Text style={[styles.questionText, { color: colors.foreground, fontSize: 20 * fontScale, lineHeight: 28 * fontScale }]}>
+                  {currentQ.text}
+                </Text>
+                <View style={styles.optionsContainer}>
+                  {currentQ.options.map((opt, oi) => {
+                    const isSelected = selected === opt;
+                    const isCorrect = opt === currentQ.correct;
+                    let borderColor = colors.border;
+                    let bg = colors.card;
+                    let textColor = colors.foreground;
+                    if (confirmed) {
+                      if (isCorrect) { borderColor = colors.green; bg = colors.green + "15"; textColor = colors.green; }
+                      else if (isSelected) { borderColor = colors.red; bg = colors.red + "15"; textColor = colors.red; }
+                    } else if (isSelected) {
+                      borderColor = colors.primary; bg = colors.primary + "15"; textColor = colors.primary;
+                    }
+                    return (
+                      <OptionButton key={opt} opt={opt} index={oi} bg={bg} borderColor={borderColor}
+                        textColor={textColor} confirmed={confirmed} isCorrect={isCorrect}
+                        isSelected={isSelected} colors={colors} fontScale={fontScale}
+                        onPress={() => { if (confirmed) return; if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelected(opt); }}
+                      />
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
-                if (confirmed) {
-                  if (isCorrect) {
-                    borderColor = colors.green;
-                    bg = colors.green + "15";
-                    textColor = colors.green;
-                  } else if (isSelected) {
-                    borderColor = colors.red;
-                    bg = colors.red + "15";
-                    textColor = colors.red;
-                  }
-                } else if (isSelected) {
-                  borderColor = colors.primary;
-                  bg = colors.primary + "15";
-                  textColor = colors.primary;
-                }
+            {currentQ.type === "fillBlank" && (
+              <FillBlankView
+                question={currentQ}
+                selected={selected}
+                confirmed={confirmed}
+                colors={colors}
+                fontScale={fontScale}
+                onSelect={setSelected}
+              />
+            )}
 
-                return (
-                  <OptionButton
-                    key={opt}
-                    opt={opt}
-                    index={oi}
-                    bg={bg}
-                    borderColor={borderColor}
-                    textColor={textColor}
-                    confirmed={confirmed}
-                    isCorrect={isCorrect}
-                    isSelected={isSelected}
-                    colors={colors}
-                    fontScale={fontScale}
-                    onPress={() => {
-                      if (confirmed) return;
-                      if (Platform.OS !== "web") {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }
-                      setSelected(opt);
-                    }}
-                  />
-                );
-              })}
-            </View>
+            {currentQ.type === "trueOrFalse" && (
+              <TrueOrFalseView
+                question={currentQ}
+                selected={selected}
+                confirmed={confirmed}
+                colors={colors}
+                fontScale={fontScale}
+                onSelect={(val) => { if (!confirmed) setSelected(val); }}
+              />
+            )}
+
+            {currentQ.type === "arrange" && (
+              <ArrangeView
+                question={currentQ}
+                selected={selected}
+                confirmed={confirmed}
+                colors={colors}
+                fontScale={fontScale}
+                onSelect={setSelected}
+              />
+            )}
 
             {confirmed && currentQ.explanation && (
               <ExplanationCard
@@ -647,6 +660,336 @@ function ExplanationCard({
     </Animated.View>
   );
 }
+
+// ─────────────────────────────────────────────
+// FillBlankView
+// ─────────────────────────────────────────────
+function FillBlankView({
+  question, selected, confirmed, colors, fontScale, onSelect,
+}: {
+  question: ReturnType<typeof findNode> extends undefined ? never : NonNullable<NonNullable<ReturnType<typeof findNode>>["questions"]>[number];
+  selected: string | null;
+  confirmed: boolean;
+  colors: ReturnType<typeof useAppColors>;
+  fontScale: number;
+  onSelect: (val: string | null) => void;
+}) {
+  // Split text on "___" to render the blank inline
+  const parts = question.text.split("___");
+  const blankFilled = selected !== null && selected !== "";
+  const isCorrect = selected === question.correct;
+
+  return (
+    <View style={fbStyles.container}>
+      {/* Statement with inline blank */}
+      <View style={fbStyles.statementWrap}>
+        {parts.map((part, i) => (
+          <React.Fragment key={i}>
+            <Text style={[fbStyles.statementText, { color: colors.foreground, fontSize: 18 * fontScale, lineHeight: 26 * fontScale }]}>
+              {part}
+            </Text>
+            {i < parts.length - 1 && (
+              <View style={[
+                fbStyles.blankBox,
+                {
+                  borderColor: confirmed
+                    ? (isCorrect ? colors.green : colors.red)
+                    : blankFilled ? colors.primary : colors.border,
+                  backgroundColor: confirmed
+                    ? (isCorrect ? colors.green + "15" : colors.red + "15")
+                    : blankFilled ? colors.primary + "12" : colors.card,
+                  minWidth: 90,
+                },
+              ]}>
+                <Text style={{
+                  fontSize: 16 * fontScale,
+                  fontWeight: "700",
+                  color: confirmed
+                    ? (isCorrect ? colors.green : colors.red)
+                    : blankFilled ? colors.primary : colors.subForeground,
+                  fontFamily: "Inter_700Bold",
+                }}>
+                  {selected ?? "?"}
+                </Text>
+              </View>
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+
+      {/* Word bank chips */}
+      <View style={fbStyles.wordBank}>
+        {question.options.map((opt, i) => {
+          const isPicked = selected === opt;
+          const isWrong = confirmed && isPicked && !isCorrect;
+          const isRight = confirmed && opt === question.correct;
+          return (
+            <TouchableOpacity
+              key={opt}
+              onPress={() => {
+                if (confirmed) return;
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onSelect(isPicked ? null : opt);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={opt}
+              accessibilityState={{ selected: isPicked, disabled: confirmed }}
+              style={[
+                fbStyles.chip,
+                {
+                  backgroundColor: isRight
+                    ? colors.green + "20"
+                    : isWrong
+                    ? colors.red + "20"
+                    : isPicked
+                    ? colors.primary + "18"
+                    : colors.card,
+                  borderColor: isRight
+                    ? colors.green
+                    : isWrong
+                    ? colors.red
+                    : isPicked
+                    ? colors.primary
+                    : colors.border,
+                  opacity: confirmed && !isRight && !isWrong ? 0.45 : 1,
+                },
+              ]}
+              activeOpacity={0.75}
+            >
+              <Text style={{
+                fontSize: 15 * fontScale,
+                fontWeight: "600",
+                color: isRight ? colors.green : isWrong ? colors.red : isPicked ? colors.primary : colors.foreground,
+                fontFamily: "Inter_600SemiBold",
+              }}>
+                {opt}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const fbStyles = StyleSheet.create({
+  container: { gap: 20 },
+  statementWrap: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, paddingHorizontal: 4 },
+  statementText: { flexShrink: 1 },
+  blankBox: { borderWidth: 2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: "center", justifyContent: "center" },
+  wordBank: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
+  chip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, borderWidth: 1.5 },
+});
+
+// ─────────────────────────────────────────────
+// TrueOrFalseView
+// ─────────────────────────────────────────────
+function TrueOrFalseView({
+  question, selected, confirmed, colors, fontScale, onSelect,
+}: {
+  question: NonNullable<NonNullable<ReturnType<typeof findNode>>["questions"]>[number];
+  selected: string | null;
+  confirmed: boolean;
+  colors: ReturnType<typeof useAppColors>;
+  fontScale: number;
+  onSelect: (val: string) => void;
+}) {
+  const isCorrect = selected === question.correct;
+
+  const renderBtn = (label: "Верно" | "Неверно", icon: "check" | "x") => {
+    const isPicked = selected === label;
+    const isAnswer = question.correct === label;
+    const btnCorrect = confirmed && isAnswer;
+    const btnWrong = confirmed && isPicked && !isAnswer;
+
+    const bg = btnCorrect
+      ? colors.green + "22"
+      : btnWrong
+      ? colors.red + "22"
+      : isPicked
+      ? colors.primary + "18"
+      : colors.card;
+    const border = btnCorrect
+      ? colors.green
+      : btnWrong
+      ? colors.red
+      : isPicked
+      ? colors.primary
+      : colors.border;
+    const textColor = btnCorrect
+      ? colors.green
+      : btnWrong
+      ? colors.red
+      : isPicked
+      ? colors.primary
+      : colors.foreground;
+    const iconName = btnCorrect ? "check-circle" : btnWrong ? "x-circle" : icon;
+
+    return (
+      <TouchableOpacity
+        key={label}
+        onPress={() => onSelect(label)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ selected: isPicked, disabled: confirmed }}
+        style={[
+          tfStyles.tfBtn,
+          { backgroundColor: bg, borderColor: border, borderWidth: isPicked || confirmed ? 2.5 : 1.5 },
+        ]}
+      >
+        <Feather name={iconName} size={28} color={textColor} />
+        <Text style={{ fontSize: 18 * fontScale, fontWeight: "700", color: textColor, fontFamily: "Inter_700Bold" }}>
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <View style={tfStyles.container}>
+      {/* Statement card */}
+      <View style={[tfStyles.statementCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Feather name="help-circle" size={20} color={colors.primary} />
+        <Text style={[tfStyles.statementText, { color: colors.foreground, fontSize: 19 * fontScale, lineHeight: 28 * fontScale }]}>
+          {question.text}
+        </Text>
+      </View>
+      {/* Two big buttons */}
+      <View style={tfStyles.btnRow}>
+        {renderBtn("Верно", "check")}
+        {renderBtn("Неверно", "x")}
+      </View>
+    </View>
+  );
+}
+
+const tfStyles = StyleSheet.create({
+  container: { gap: 24 },
+  statementCard: { padding: 20, borderRadius: 18, borderWidth: 1, gap: 12 },
+  statementText: { fontWeight: "600", fontFamily: "Inter_600SemiBold" },
+  btnRow: { flexDirection: "row", gap: 12 },
+  tfBtn: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 22, borderRadius: 20, borderWidth: 1.5 },
+});
+
+// ─────────────────────────────────────────────
+// ArrangeView
+// ─────────────────────────────────────────────
+function ArrangeView({
+  question, selected, confirmed, colors, fontScale, onSelect,
+}: {
+  question: NonNullable<NonNullable<ReturnType<typeof findNode>>["questions"]>[number];
+  selected: string | null;
+  confirmed: boolean;
+  colors: ReturnType<typeof useAppColors>;
+  fontScale: number;
+  onSelect: (val: string | null) => void;
+}) {
+  const correctItems = question.correct.split("|");
+  const [arranged, setArranged] = useState<string[]>([]);
+  const scrambled = question.options; // already scrambled in data
+
+  // When all placed, propagate to parent selected state
+  const totalItems = scrambled.length;
+  useEffect(() => {
+    if (arranged.length === totalItems && totalItems > 0) {
+      onSelect(arranged.join("|"));
+    } else {
+      onSelect(null);
+    }
+  }, [arranged, totalItems, onSelect]);
+
+  // Reset when question changes
+  useEffect(() => {
+    setArranged([]);
+  }, [question.id]);
+
+  const isCorrect = selected === question.correct;
+
+  const handlePickItem = (item: string) => {
+    if (confirmed) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setArranged((prev) => [...prev, item]);
+  };
+
+  const handleRemoveItem = (idx: number) => {
+    if (confirmed) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setArranged((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const remaining = scrambled.filter((it) => !arranged.includes(it));
+
+  return (
+    <View style={arrStyles.container}>
+      <Text style={[arrStyles.instruction, { color: colors.foreground, fontSize: 18 * fontScale, lineHeight: 26 * fontScale }]}>
+        {question.text}
+      </Text>
+
+      {/* Slots — placed items */}
+      <View style={[arrStyles.slotsBox, { backgroundColor: colors.card, borderColor: confirmed ? (isCorrect ? colors.green : colors.red) : colors.border }]}>
+        {arranged.length === 0 && (
+          <Text style={{ color: colors.subForeground, fontSize: 13 * fontScale }}>Нажимай на варианты ниже →</Text>
+        )}
+        {arranged.map((it, idx) => {
+          const posCorrect = correctItems[idx] === it;
+          return (
+            <TouchableOpacity
+              key={`${it}-${idx}`}
+              onPress={() => handleRemoveItem(idx)}
+              accessibilityRole="button"
+              accessibilityLabel={`Убрать: ${it}`}
+              accessibilityState={{ disabled: confirmed }}
+              style={[
+                arrStyles.slotChip,
+                {
+                  backgroundColor: confirmed
+                    ? (posCorrect ? colors.green + "20" : colors.red + "20")
+                    : colors.primary + "18",
+                  borderColor: confirmed
+                    ? (posCorrect ? colors.green : colors.red)
+                    : colors.primary,
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 13 * fontScale, color: confirmed ? (posCorrect ? colors.green : colors.red) : colors.primary, fontWeight: "600", fontFamily: "Inter_600SemiBold" }}>
+                {idx + 1}. {it}
+              </Text>
+              {!confirmed && <Feather name="x" size={12} color={colors.primary} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Remaining chips to pick from */}
+      <View style={arrStyles.bankRow}>
+        {remaining.map((item) => (
+          <TouchableOpacity
+            key={item}
+            onPress={() => handlePickItem(item)}
+            accessibilityRole="button"
+            accessibilityLabel={item}
+            style={[arrStyles.bankChip, { backgroundColor: colors.card, borderColor: colors.border }]}
+            activeOpacity={0.75}
+          >
+            <Text style={{ fontSize: 13 * fontScale, color: colors.foreground, fontWeight: "500", fontFamily: "Inter_500Medium" }}>
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const arrStyles = StyleSheet.create({
+  container: { gap: 16 },
+  instruction: { fontWeight: "600", fontFamily: "Inter_600SemiBold" },
+  slotsBox: { minHeight: 70, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", padding: 12, gap: 8 },
+  slotChip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, gap: 6 },
+  bankRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  bankChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 14, borderWidth: 1.5 },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
