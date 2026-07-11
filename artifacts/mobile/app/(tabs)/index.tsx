@@ -8,6 +8,8 @@ import {
   Platform,
   LayoutAnimation,
   UIManager,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -48,6 +50,44 @@ const TYPE_ICON: Record<string, keyof typeof Feather.glyphMap> = {
 };
 const LEAGUE_NAMES = ["Бронза", "Серебро", "Золото", "Платина", "Алмаз"];
 const LEAGUE_COLORS = ["#CD7F32", "#C0C0C0", "#FFD700", "#E5E4E2", "#B9F2FF"];
+
+function getAchievementProgress(
+  a: (typeof achievements)[number],
+  stats: {
+    xp: number;
+    streak: number;
+    solvedTasks: number;
+    correctAnswers: number;
+    totalAnswers: number;
+    completedNodeIds: string[];
+  }
+): string | null {
+  switch (a.id) {
+    case "streak_3":
+      return `Сейчас: ${stats.streak} из 3 дней подряд`;
+    case "streak_7":
+      return `Сейчас: ${stats.streak} из 7 дней подряд`;
+    case "xp_100":
+      return `Сейчас: ${stats.xp} из 100 XP`;
+    case "xp_500":
+      return `Сейчас: ${stats.xp} из 500 XP`;
+    case "xp_1000":
+      return `Сейчас: ${stats.xp} из 1000 XP`;
+    case "accuracy_90": {
+      const acc =
+        stats.totalAnswers > 0
+          ? Math.round((stats.correctAnswers / stats.totalAnswers) * 100)
+          : 0;
+      return `Сейчас: ${acc}% точности из ${stats.totalAnswers} ответов (нужно ≥90% при минимум 10 ответах)`;
+    }
+    case "tasks_10":
+      return `Сейчас: ${stats.solvedTasks} из 10 заданий`;
+    case "tasks_50":
+      return `Сейчас: ${stats.solvedTasks} из 50 заданий`;
+    default:
+      return null;
+  }
+}
 
 // ── Секция-папка ─────────────────────────────────────────────────
 function FolderSection({
@@ -130,6 +170,9 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { userStats, settings, weekStreak, nextLessonId } = useApp();
+  const [selectedAchievement, setSelectedAchievement] = useState<
+    (typeof achievements)[number] | null
+  >(null);
 
   const streak = weekStreak();
   const nextId = nextLessonId();
@@ -366,8 +409,12 @@ export default function HomeScreen() {
             {achievements.map((a) => {
               const unlocked = a.isUnlocked(achievementStats);
               return (
-                <View
+                <TouchableOpacity
                   key={a.id}
+                  activeOpacity={0.75}
+                  onPress={() => setSelectedAchievement(a)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${a.label}. ${unlocked ? "Получено" : "Не получено"}. Нажмите, чтобы узнать условие`}
                   style={[
                     styles.achievementCard,
                     {
@@ -388,12 +435,118 @@ export default function HomeScreen() {
                       <Feather name="check" size={9} color="white" />
                     </View>
                   )}
-                </View>
+                  <View
+                    style={[
+                      styles.infoBadge,
+                      { backgroundColor: colors.background + "cc", borderColor: colors.border },
+                    ]}
+                  >
+                    <Feather name="info" size={9} color={colors.subForeground} />
+                  </View>
+                </TouchableOpacity>
               );
             })}
           </View>
         </FolderSection>
       </ScrollView>
+
+      {/* ── Achievement detail modal ── */}
+      <Modal
+        visible={!!selectedAchievement}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedAchievement(null)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setSelectedAchievement(null)}
+        >
+          <Pressable
+            style={[
+              styles.modalCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {selectedAchievement && (() => {
+              const unlocked = selectedAchievement.isUnlocked(achievementStats);
+              const progress = getAchievementProgress(selectedAchievement, achievementStats);
+              return (
+                <>
+                  <TouchableOpacity
+                    style={styles.modalClose}
+                    onPress={() => setSelectedAchievement(null)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Закрыть"
+                  >
+                    <Feather name="x" size={18} color={colors.subForeground} />
+                  </TouchableOpacity>
+
+                  <View
+                    style={[
+                      styles.modalIcon,
+                      {
+                        backgroundColor: unlocked
+                          ? selectedAchievement.iconColor + "26"
+                          : colors.track,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={selectedAchievement.iconName as any}
+                      size={30}
+                      color={unlocked ? selectedAchievement.iconColor : colors.mutedForeground}
+                    />
+                  </View>
+
+                  <Text style={[styles.modalLabel, { color: colors.foreground }]}>
+                    {selectedAchievement.label}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.modalStatusBadge,
+                      { backgroundColor: unlocked ? colors.green + "18" : colors.amber + "18" },
+                    ]}
+                  >
+                    <Feather
+                      name={unlocked ? "check-circle" : "lock"}
+                      size={12}
+                      color={unlocked ? colors.green : colors.amber}
+                    />
+                    <Text
+                      style={[
+                        styles.modalStatusText,
+                        { color: unlocked ? colors.green : colors.amber },
+                      ]}
+                    >
+                      {unlocked ? "Уже получено" : "Ещё не получено"}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.modalDescription, { color: colors.subForeground }]}>
+                    {selectedAchievement.description}
+                  </Text>
+
+                  {!unlocked && progress && (
+                    <View
+                      style={[
+                        styles.modalProgressBox,
+                        { backgroundColor: colors.background, borderColor: colors.border },
+                      ]}
+                    >
+                      <Feather name="trending-up" size={14} color={colors.primary} />
+                      <Text style={[styles.modalProgressText, { color: colors.foreground }]}>
+                        {progress}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -578,6 +731,84 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "500",
     lineHeight: 14,
+  },
+  infoBadge: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 28,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    gap: 10,
+  },
+  modalClose: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    padding: 4,
+  },
+  modalIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  modalLabel: {
+    fontSize: 19,
+    fontWeight: "800",
+    fontFamily: "Inter_700Bold",
+    textAlign: "center",
+  },
+  modalStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  modalStatusText: { fontSize: 12, fontWeight: "700" },
+  modalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  modalProgressBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 6,
+    width: "100%",
+  },
+  modalProgressText: {
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+    flexWrap: "wrap",
   },
   checkBadge: {
     position: "absolute",
