@@ -15,7 +15,13 @@ import Svg, { Circle } from "react-native-svg";
 import { useApp } from "@/contexts/AppContext";
 import { useAppColors } from "@/hooks/useAppColors";
 import Mascot from "@/components/Mascot";
-import { achievements } from "@/data/achievements";
+import {
+  achievements,
+  RARITY_CONFIG,
+  NUMBERS_CHAPTER_NODES,
+  type Rarity,
+  type AchievementStats,
+} from "@/data/achievements";
 
 const LEAGUE_NAMES = ["Бронза", "Серебро", "Золото", "Платина", "Алмаз"];
 const LEAGUE_COLORS = ["#CD7F32", "#C0C0C0", "#FFD700", "#E2E0DF", "#B9F2FF"];
@@ -25,41 +31,40 @@ const LEAGUE_ICONS: Array<keyof typeof Feather.glyphMap> = [
 
 function getAchievementProgress(
   a: (typeof achievements)[number],
-  stats: {
-    xp: number;
-    streak: number;
-    solvedTasks: number;
-    correctAnswers: number;
-    totalAnswers: number;
-    completedNodeIds: string[];
-  }
+  stats: AchievementStats
 ): string | null {
+  // Secrets never show progress hints
+  if (a.rarity === "secret") return null;
+  const acc =
+    stats.totalAnswers > 0
+      ? Math.round((stats.correctAnswers / stats.totalAnswers) * 100)
+      : 0;
   switch (a.id) {
-    case "streak_3":
-      return `Сейчас: ${stats.streak} из 3 дней подряд`;
-    case "streak_7":
-      return `Сейчас: ${stats.streak} из 7 дней подряд`;
-    case "xp_100":
-      return `Сейчас: ${stats.xp} из 100 XP`;
-    case "xp_500":
-      return `Сейчас: ${stats.xp} из 500 XP`;
-    case "xp_1000":
-      return `Сейчас: ${stats.xp} из 1000 XP`;
-    case "accuracy_90": {
-      const acc =
-        stats.totalAnswers > 0
-          ? Math.round((stats.correctAnswers / stats.totalAnswers) * 100)
-          : 0;
-      return `Сейчас: ${acc}% точности из ${stats.totalAnswers} ответов (нужно ≥90% при минимум 10 ответах)`;
+    case "streak_3":    return `Стрик: ${stats.streak} / 3 дня`;
+    case "streak_7":    return `Стрик: ${stats.streak} / 7 дней`;
+    case "streak_14":   return `Стрик: ${stats.streak} / 14 дней`;
+    case "streak_30":   return `Стрик: ${stats.streak} / 30 дней`;
+    case "xp_100":      return `XP: ${stats.xp} / 100`;
+    case "xp_500":      return `XP: ${stats.xp} / 500`;
+    case "xp_1000":     return `XP: ${stats.xp} / 1000`;
+    case "xp_2000":     return `XP: ${stats.xp} / 2000`;
+    case "tasks_10":    return `Заданий: ${stats.solvedTasks} / 10`;
+    case "tasks_50":    return `Заданий: ${stats.solvedTasks} / 50`;
+    case "tasks_100":   return `Заданий: ${stats.solvedTasks} / 100`;
+    case "tasks_200":   return `Заданий: ${stats.solvedTasks} / 200`;
+    case "nodes_5":     return `Уроков пройдено: ${stats.completedNodeIds.length} / 5`;
+    case "accuracy_90":
+      return `Точность: ${acc}% из ${stats.totalAnswers} ответов (нужно ≥90% при ≥10 ответах)`;
+    case "accuracy_95":
+      return `Точность: ${acc}% из ${stats.totalAnswers} ответов (нужно ≥95% при ≥30 ответах)`;
+    case "accuracy_95_hard":
+      return `Точность: ${acc}% из ${stats.totalAnswers} ответов (нужно ≥95% при ≥100 ответах)`;
+    case "chapter_1": {
+      const done = NUMBERS_CHAPTER_NODES.filter((id) =>
+        stats.completedNodeIds.includes(id)
+      ).length;
+      return `Глава «Числа»: ${done} / ${NUMBERS_CHAPTER_NODES.length} уроков`;
     }
-    case "tasks_10":
-      return `Сейчас: ${stats.solvedTasks} из 10 заданий`;
-    case "tasks_50":
-      return `Сейчас: ${stats.solvedTasks} из 50 заданий`;
-    case "chapter_1":
-      return null;
-    case "first_lesson":
-      return null;
     default:
       return null;
   }
@@ -86,16 +91,18 @@ export default function ProfileScreen() {
       ? Math.round((userStats.correctAnswers / userStats.totalAnswers) * 100)
       : 0;
 
-  const unlockedCount = achievements.filter((a) =>
-    a.isUnlocked({
-      xp: userStats.xp,
-      streak: userStats.streak,
-      solvedTasks: userStats.solvedTasks,
-      correctAnswers: userStats.correctAnswers,
-      totalAnswers: userStats.totalAnswers,
-      completedNodeIds: userStats.completedNodeIds,
-    })
-  ).length;
+  const nowRef = new Date();
+  const statsSnap: AchievementStats = {
+    xp: userStats.xp,
+    streak: userStats.streak,
+    solvedTasks: userStats.solvedTasks,
+    correctAnswers: userStats.correctAnswers,
+    totalAnswers: userStats.totalAnswers,
+    completedNodeIds: userStats.completedNodeIds,
+    now: nowRef,
+  };
+
+  const unlockedCount = achievements.filter((a) => a.isUnlocked(statsSnap)).length;
 
   const pt = insets.top + (Platform.OS === "web" ? 67 : 0);
   const pb = insets.bottom + (Platform.OS === "web" ? 34 : 0);
@@ -266,99 +273,112 @@ export default function ProfileScreen() {
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               Достижения
             </Text>
-            <View
-              style={[
-                styles.countBadge,
-                { backgroundColor: colors.amber + "20" },
-              ]}
-            >
+            <View style={[styles.countBadge, { backgroundColor: colors.amber + "20" }]}>
               <Text style={[styles.countText, { color: colors.amber }]}>
                 {unlockedCount} / {achievements.length}
               </Text>
             </View>
           </View>
 
-          <View style={styles.achievementsGrid}>
-            {achievements.map((a) => {
-              const unlocked = a.isUnlocked({
-                xp: userStats.xp,
-                streak: userStats.streak,
-                solvedTasks: userStats.solvedTasks,
-                correctAnswers: userStats.correctAnswers,
-                totalAnswers: userStats.totalAnswers,
-                completedNodeIds: userStats.completedNodeIds,
-              });
-              return (
-                <TouchableOpacity
-                  key={a.id}
-                  activeOpacity={0.75}
-                  onPress={() => setSelectedAchievement(a)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${a.label}. ${unlocked ? "Получено" : "Не получено"}. Нажмите, чтобы узнать условие"`}
-                  style={[
-                    styles.achievementCard,
-                    {
-                      backgroundColor: unlocked
-                        ? a.iconColor + "14"
-                        : colors.card,
-                      borderColor: unlocked
-                        ? a.iconColor + "35"
-                        : colors.border,
-                      opacity: unlocked ? 1 : 0.42,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.achievementIcon,
-                      {
-                        backgroundColor: unlocked
-                          ? a.iconColor + "26"
-                          : colors.track,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name={a.iconName as any}
-                      size={20}
-                      color={unlocked ? a.iconColor : colors.mutedForeground}
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.achievementLabel,
-                      {
-                        color: unlocked
-                          ? colors.foreground
-                          : colors.subForeground,
-                      },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {a.label}
+          {(["common", "medium", "epic", "legendary", "secret"] as Rarity[]).map((rarity) => {
+            const rarityConfig = RARITY_CONFIG[rarity];
+            const group = achievements.filter((a) => a.rarity === rarity);
+            const groupUnlocked = group.filter((a) => a.isUnlocked(statsSnap)).length;
+            return (
+              <View key={rarity} style={styles.rarityGroup}>
+                {/* Rarity header */}
+                <View style={styles.rarityHeader}>
+                  <View style={[styles.rarityDot, { backgroundColor: rarityConfig.color }]} />
+                  <Text style={[styles.rarityTitle, { color: rarityConfig.color }]}>
+                    {rarityConfig.label}
                   </Text>
-                  {unlocked && (
-                    <View
-                      style={[
-                        styles.checkBadge,
-                        { backgroundColor: a.iconColor },
-                      ]}
-                    >
-                      <Feather name="check" size={9} color="white" />
-                    </View>
-                  )}
-                  <View
-                    style={[
-                      styles.infoBadge,
-                      { backgroundColor: colors.background + "cc", borderColor: colors.border },
-                    ]}
-                  >
-                    <Feather name="info" size={9} color={colors.subForeground} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                  <Text style={[styles.rarityCount, { color: colors.mutedForeground }]}>
+                    {groupUnlocked}/{group.length}
+                  </Text>
+                </View>
+
+                {/* Cards grid */}
+                <View style={styles.achievementsGrid}>
+                  {group.map((a) => {
+                    const unlocked = a.isUnlocked(statsSnap);
+                    const isSecret = a.rarity === "secret";
+                    const hidden = isSecret && !unlocked;
+                    const displayColor = hidden ? colors.mutedForeground : a.iconColor;
+                    return (
+                      <TouchableOpacity
+                        key={a.id}
+                        activeOpacity={0.75}
+                        onPress={() => setSelectedAchievement(a)}
+                        accessibilityRole="button"
+                        accessibilityLabel={hidden ? "Секретное достижение" : `${a.label}. ${unlocked ? "Получено" : "Не получено"}`}
+                        style={[
+                          styles.achievementCard,
+                          {
+                            backgroundColor: unlocked
+                              ? a.iconColor + "14"
+                              : colors.card,
+                            borderColor: unlocked
+                              ? a.iconColor + "35"
+                              : hidden
+                              ? rarityConfig.color + "30"
+                              : colors.border,
+                            opacity: unlocked ? 1 : hidden ? 0.55 : 0.42,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.achievementIcon,
+                            {
+                              backgroundColor: unlocked
+                                ? a.iconColor + "26"
+                                : hidden
+                                ? rarityConfig.color + "18"
+                                : colors.track,
+                            },
+                          ]}
+                        >
+                          <Feather
+                            name={hidden ? "help-circle" : (a.iconName as any)}
+                            size={20}
+                            color={displayColor}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.achievementLabel,
+                            {
+                              color: unlocked
+                                ? colors.foreground
+                                : hidden
+                                ? rarityConfig.color
+                                : colors.subForeground,
+                            },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {hidden ? "???" : a.label}
+                        </Text>
+                        {unlocked && (
+                          <View style={[styles.checkBadge, { backgroundColor: a.iconColor }]}>
+                            <Feather name="check" size={9} color="white" />
+                          </View>
+                        )}
+                        <View
+                          style={[
+                            styles.infoBadge,
+                            { backgroundColor: colors.background + "cc", borderColor: colors.border },
+                          ]}
+                        >
+                          <Feather name="info" size={9} color={colors.subForeground} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -381,22 +401,11 @@ export default function ProfileScreen() {
             onPress={(e) => e.stopPropagation()}
           >
             {selectedAchievement && (() => {
-              const unlocked = selectedAchievement.isUnlocked({
-                xp: userStats.xp,
-                streak: userStats.streak,
-                solvedTasks: userStats.solvedTasks,
-                correctAnswers: userStats.correctAnswers,
-                totalAnswers: userStats.totalAnswers,
-                completedNodeIds: userStats.completedNodeIds,
-              });
-              const progress = getAchievementProgress(selectedAchievement, {
-                xp: userStats.xp,
-                streak: userStats.streak,
-                solvedTasks: userStats.solvedTasks,
-                correctAnswers: userStats.correctAnswers,
-                totalAnswers: userStats.totalAnswers,
-                completedNodeIds: userStats.completedNodeIds,
-              });
+              const unlocked = selectedAchievement.isUnlocked(statsSnap);
+              const isSecret = selectedAchievement.rarity === "secret";
+              const hidden = isSecret && !unlocked;
+              const rarityConfig = RARITY_CONFIG[selectedAchievement.rarity];
+              const progress = getAchievementProgress(selectedAchievement, statsSnap);
               return (
                 <>
                   <TouchableOpacity
@@ -408,25 +417,34 @@ export default function ProfileScreen() {
                     <Feather name="x" size={18} color={colors.subForeground} />
                   </TouchableOpacity>
 
+                  {/* Rarity pill */}
+                  <View style={[styles.modalRarityPill, { backgroundColor: rarityConfig.color + "22" }]}>
+                    <Text style={[styles.modalRarityText, { color: rarityConfig.color }]}>
+                      {rarityConfig.label}
+                    </Text>
+                  </View>
+
                   <View
                     style={[
                       styles.modalIcon,
                       {
                         backgroundColor: unlocked
                           ? selectedAchievement.iconColor + "26"
+                          : hidden
+                          ? rarityConfig.color + "18"
                           : colors.track,
                       },
                     ]}
                   >
                     <Feather
-                      name={selectedAchievement.iconName as any}
+                      name={hidden ? "help-circle" : (selectedAchievement.iconName as any)}
                       size={30}
-                      color={unlocked ? selectedAchievement.iconColor : colors.mutedForeground}
+                      color={unlocked ? selectedAchievement.iconColor : hidden ? rarityConfig.color : colors.mutedForeground}
                     />
                   </View>
 
                   <Text style={[styles.modalLabel, { color: colors.foreground }]}>
-                    {selectedAchievement.label}
+                    {hidden ? "???" : selectedAchievement.label}
                   </Text>
 
                   <View
@@ -435,30 +453,34 @@ export default function ProfileScreen() {
                       {
                         backgroundColor: unlocked
                           ? colors.green + "18"
+                          : hidden
+                          ? rarityConfig.color + "18"
                           : colors.amber + "18",
                       },
                     ]}
                   >
                     <Feather
-                      name={unlocked ? "check-circle" : "lock"}
+                      name={unlocked ? "check-circle" : hidden ? "lock" : "clock"}
                       size={12}
-                      color={unlocked ? colors.green : colors.amber}
+                      color={unlocked ? colors.green : hidden ? rarityConfig.color : colors.amber}
                     />
                     <Text
                       style={[
                         styles.modalStatusText,
-                        { color: unlocked ? colors.green : colors.amber },
+                        { color: unlocked ? colors.green : hidden ? rarityConfig.color : colors.amber },
                       ]}
                     >
-                      {unlocked ? "Уже получено" : "Ещё не получено"}
+                      {unlocked ? "Уже получено" : hidden ? "Условие скрыто" : "Ещё не получено"}
                     </Text>
                   </View>
 
                   <Text style={[styles.modalDescription, { color: colors.subForeground }]}>
-                    {selectedAchievement.description}
+                    {hidden
+                      ? "Это секретное достижение. Условие раскроется, когда ты его получишь."
+                      : selectedAchievement.description}
                   </Text>
 
-                  {!unlocked && progress && (
+                  {!unlocked && !hidden && progress && (
                     <View
                       style={[
                         styles.modalProgressBox,
@@ -568,7 +590,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 22, fontWeight: "800", fontFamily: "Inter_700Bold" },
   statSub: { fontSize: 12 },
 
-  sectionWrap: { gap: 12 },
+  sectionWrap: { gap: 16 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -586,6 +608,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   countText: { fontSize: 12, fontWeight: "600" },
+
+  rarityGroup: { gap: 10 },
+  rarityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  rarityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  rarityTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  rarityCount: { fontSize: 12, fontWeight: "500" },
+
   achievementsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -656,6 +700,18 @@ const styles = StyleSheet.create({
     top: 14,
     right: 14,
     padding: 4,
+  },
+  modalRarityPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 4,
+  },
+  modalRarityText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   modalIcon: {
     width: 68,
