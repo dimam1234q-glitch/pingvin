@@ -25,7 +25,7 @@ export const achievements: Achievement[] = [
   },
   {
     id: "streak_3",
-    iconName: "flame",
+    iconName: "activity",
     iconColor: "#EF4444",
     label: "3 дня подряд",
     description: "Заниматься 3 дня без перерыва",
@@ -33,7 +33,7 @@ export const achievements: Achievement[] = [
   },
   {
     id: "streak_7",
-    iconName: "flame",
+    iconName: "activity",
     iconColor: "#DC2626",
     label: "Неделя силы",
     description: "Заниматься 7 дней подряд",
