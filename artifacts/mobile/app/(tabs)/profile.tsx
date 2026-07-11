@@ -303,7 +303,7 @@ export default function ProfileScreen() {
                     const unlocked = a.isUnlocked(statsSnap);
                     const isSecret = a.rarity === "secret";
                     const hidden = isSecret && !unlocked;
-                    const displayColor = hidden ? colors.mutedForeground : a.iconColor;
+                    const secretColor = rarityConfig.color; // #EC4899
                     return (
                       <TouchableOpacity
                         key={a.id}
@@ -313,27 +313,26 @@ export default function ProfileScreen() {
                         accessibilityLabel={hidden ? "Секретное достижение" : `${a.label}. ${unlocked ? "Получено" : "Не получено"}`}
                         style={[
                           styles.achievementCard,
-                          {
-                            backgroundColor: unlocked
-                              ? a.iconColor + "14"
-                              : colors.card,
-                            borderColor: unlocked
-                              ? a.iconColor + "35"
-                              : hidden
-                              ? rarityConfig.color + "30"
-                              : colors.border,
-                            opacity: unlocked ? 1 : hidden ? 0.55 : 0.42,
-                          },
+                          hidden
+                            ? {
+                                backgroundColor: secretColor + "18",
+                                borderColor: secretColor,
+                              }
+                            : {
+                                backgroundColor: unlocked ? a.iconColor + "14" : colors.card,
+                                borderColor: unlocked ? a.iconColor + "55" : colors.border,
+                                opacity: unlocked ? 1 : 0.42,
+                              },
                         ]}
                       >
                         <View
                           style={[
                             styles.achievementIcon,
                             {
-                              backgroundColor: unlocked
+                              backgroundColor: hidden
+                                ? secretColor + "30"
+                                : unlocked
                                 ? a.iconColor + "26"
-                                : hidden
-                                ? rarityConfig.color + "18"
                                 : colors.track,
                             },
                           ]}
@@ -341,18 +340,19 @@ export default function ProfileScreen() {
                           <Feather
                             name={hidden ? "help-circle" : (a.iconName as any)}
                             size={20}
-                            color={displayColor}
+                            color={hidden ? secretColor : unlocked ? a.iconColor : colors.mutedForeground}
                           />
                         </View>
                         <Text
                           style={[
                             styles.achievementLabel,
                             {
-                              color: unlocked
+                              color: hidden
+                                ? secretColor
+                                : unlocked
                                 ? colors.foreground
-                                : hidden
-                                ? rarityConfig.color
                                 : colors.subForeground,
+                              fontWeight: hidden ? "700" : "500",
                             },
                           ]}
                           numberOfLines={2}
@@ -364,14 +364,21 @@ export default function ProfileScreen() {
                             <Feather name="check" size={9} color="white" />
                           </View>
                         )}
-                        <View
-                          style={[
-                            styles.infoBadge,
-                            { backgroundColor: colors.background + "cc", borderColor: colors.border },
-                          ]}
-                        >
-                          <Feather name="info" size={9} color={colors.subForeground} />
-                        </View>
+                        {hidden && (
+                          <View style={[styles.checkBadge, { backgroundColor: secretColor }]}>
+                            <Feather name="lock" size={9} color="white" />
+                          </View>
+                        )}
+                        {!hidden && (
+                          <View
+                            style={[
+                              styles.infoBadge,
+                              { backgroundColor: colors.background + "cc", borderColor: colors.border },
+                            ]}
+                          >
+                            <Feather name="info" size={9} color={colors.subForeground} />
+                          </View>
+                        )}
                       </TouchableOpacity>
                     );
                   })}
