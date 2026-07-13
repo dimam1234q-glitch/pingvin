@@ -29,6 +29,7 @@ import CelebrationOverlay from "@/components/CelebrationOverlay";
 import StreakFireOverlay from "@/components/StreakFireOverlay";
 import VideoPlayer from "@/components/VideoPlayer";
 import TheoryReader from "@/components/TheoryReader";
+import PdfButton from "@/components/PdfButton";
 import { findNode } from "@/data/curriculum";
 import type { LessonResult } from "@/contexts/AppContext";
 
@@ -439,6 +440,14 @@ function TheoryContent({
         </LinearGradient>
 
         <VideoPlayer videoUrl={node.videoUrl} title={node.theoryTitle} />
+
+        {node.theoryPdfKey && (
+          <PdfButton
+            pdfKey={node.theoryPdfKey}
+            label={node.theoryPdfLabel ?? "Открыть конспект"}
+            fontScale={fontScale}
+          />
+        )}
 
         {node.theoryBlocks ? (
           <TheoryReader blocks={node.theoryBlocks} fontScale={fontScale} />

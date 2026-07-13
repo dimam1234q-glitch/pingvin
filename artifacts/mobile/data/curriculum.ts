@@ -38,6 +38,8 @@ export interface LessonNode {
   theoryKeyPoints?: string[];
   theoryBlocks?: TheoryBlock[];
   videoUrl?: string;
+  theoryPdfKey?: string;
+  theoryPdfLabel?: string;
   questions?: Question[];
   xpReward: number;
 }
@@ -70,6 +72,8 @@ export const chapters: Chapter[] = [
         iconName: "book-open",
         theoryTitle: "Обыкновенные дроби: виды",
         videoUrl: "https://vkvideo.ru/video_ext.php?oid=-230639258&id=456239040&hash=fb4b2a31e3656ce9&hd=4",
+        theoryPdfKey: "theory_t1",
+        theoryPdfLabel: "Конспект лекции №1",
         theoryBlocks: [
           {
             type: "paragraph",
