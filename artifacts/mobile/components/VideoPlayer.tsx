@@ -1,21 +1,36 @@
-import React, { useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Platform,
-} from "react-native";
+import React from "react";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useAppColors } from "@/hooks/useAppColors";
+
+// Conditionally import WebView only on native (web uses <iframe>)
+let WebView: any = null;
+if (Platform.OS !== "web") {
+  WebView = require("react-native-webview").WebView;
+}
 
 interface VideoPlayerProps {
   videoUrl?: string;
   title?: string;
 }
 
+/**
+ * Определяем, является ли ссылка embed-вставкой (VK Видео, Rutube и т.д.)
+ * Если да — используем iframe/WebView. Если нет — прямой <video>.
+ */
+function isEmbedUrl(url: string): boolean {
+  return (
+    url.includes("vkvideo.ru/video_ext") ||
+    url.includes("vk.com/video_ext") ||
+    url.includes("rutube.ru/play/embed") ||
+    url.includes("rutube.ru/video/embed")
+  );
+}
+
 export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
   const colors = useAppColors();
 
+  // ─── Заглушка: видео не добавлено ─────────────────────────────────────────
   if (!videoUrl) {
     return (
       <View
@@ -24,9 +39,7 @@ export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
           { backgroundColor: colors.card, borderColor: colors.border },
         ]}
       >
-        <View
-          style={[styles.placeholderIcon, { backgroundColor: colors.primary + "20" }]}
-        >
+        <View style={[styles.placeholderIcon, { backgroundColor: colors.primary + "20" }]}>
           <Feather name="video" size={30} color={colors.primary} />
         </View>
         <View style={styles.placeholderText}>
@@ -40,10 +53,7 @@ export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
         <View
           style={[
             styles.uploadBadge,
-            {
-              backgroundColor: colors.primary + "15",
-              borderColor: colors.primary + "30",
-            },
+            { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" },
           ]}
         >
           <Feather name="upload-cloud" size={12} color={colors.primary} />
@@ -53,9 +63,12 @@ export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
     );
   }
 
+  const embed = isEmbedUrl(videoUrl);
+
+  // ─── Web ───────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <View style={styles.webVideoContainer}>
+      <View style={styles.webContainer}>
         {title && (
           <View style={styles.titleRow}>
             <Feather name="play-circle" size={16} color={colors.primary} />
@@ -68,23 +81,73 @@ export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
           </View>
         )}
         <View style={styles.videoWrapper}>
-          {/* @ts-ignore — web-only element */}
-          <video
-            src={videoUrl}
-            controls
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              backgroundColor: "#000",
-              borderRadius: 14,
-            }}
+          {embed ? (
+            // @ts-ignore — web-only element
+            <iframe
+              src={videoUrl}
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock"
+              frameBorder={0}
+              allowFullScreen
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+                borderRadius: 14,
+                backgroundColor: "#000",
+              }}
+            />
+          ) : (
+            // @ts-ignore — web-only element
+            <video
+              src={videoUrl}
+              controls
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                backgroundColor: "#000",
+                borderRadius: 14,
+              }}
+            />
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // ─── Native (iOS / Android) ────────────────────────────────────────────────
+  if (embed && WebView) {
+    return (
+      <View style={styles.nativeContainer}>
+        {title && (
+          <View style={styles.titleRow}>
+            <Feather name="play-circle" size={16} color={colors.primary} />
+            <Text
+              style={[styles.titleText, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+          </View>
+        )}
+        <View style={styles.videoWrapper}>
+          <WebView
+            source={{ uri: videoUrl }}
+            style={styles.webview}
+            allowsFullscreenVideo
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            javaScriptEnabled
+            domStorageEnabled
+            scrollEnabled={false}
           />
         </View>
       </View>
     );
   }
 
+  // ─── Native: прямой mp4 без WebView ───────────────────────────────────────
+  // Если понадобится expo-video — добавить сюда позже
   return (
     <View
       style={[
@@ -92,9 +155,7 @@ export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
-      <View
-        style={[styles.placeholderIcon, { backgroundColor: colors.primary + "20" }]}
-      >
+      <View style={[styles.placeholderIcon, { backgroundColor: colors.primary + "20" }]}>
         <Feather name="smartphone" size={30} color={colors.primary} />
       </View>
       <View style={styles.placeholderText}>
@@ -110,9 +171,8 @@ export default function VideoPlayer({ videoUrl, title }: VideoPlayerProps) {
 }
 
 const styles = StyleSheet.create({
-  webVideoContainer: {
-    gap: 8,
-  },
+  webContainer: { gap: 8 },
+  nativeContainer: { gap: 8 },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -130,6 +190,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     borderRadius: 14,
     overflow: "hidden",
+  },
+  webview: {
+    flex: 1,
+    backgroundColor: "#000",
   },
   placeholder: {
     flexDirection: "row",
