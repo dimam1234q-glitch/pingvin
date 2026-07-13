@@ -28,6 +28,7 @@ import GradientButton from "@/components/GradientButton";
 import CelebrationOverlay from "@/components/CelebrationOverlay";
 import StreakFireOverlay from "@/components/StreakFireOverlay";
 import VideoPlayer from "@/components/VideoPlayer";
+import TheoryReader from "@/components/TheoryReader";
 import { findNode } from "@/data/curriculum";
 import type { LessonResult } from "@/contexts/AppContext";
 
@@ -439,41 +440,31 @@ function TheoryContent({
 
         <VideoPlayer videoUrl={node.videoUrl} title={node.theoryTitle} />
 
-        <Text style={[styles.theoryText, { color: colors.subForeground, fontSize: 16 * fontScale, lineHeight: 26 * fontScale }]}>
-          {node.theoryContent}
-        </Text>
-
-        {node.theoryKeyPoints && node.theoryKeyPoints.length > 0 && (
-          <View
-            style={[
-              styles.keyPoints,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Text
-              style={[styles.keyPointsTitle, { color: colors.foreground, fontSize: 14 * fontScale }]}
-            >
-              Ключевые формулы
-            </Text>
-            {node.theoryKeyPoints.map((kp, i) => (
-              <View key={i} style={styles.keyPointRow}>
-                <View
-                  style={[
-                    styles.keyPointDot,
-                    { backgroundColor: colors.primary },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.keyPointText,
-                    { color: colors.subForeground, fontSize: 14 * fontScale, lineHeight: 20 * fontScale },
-                  ]}
-                >
-                  {kp}
+        {node.theoryBlocks ? (
+          <TheoryReader blocks={node.theoryBlocks} fontScale={fontScale} />
+        ) : (
+          <>
+            {node.theoryContent && (
+              <Text style={[styles.theoryText, { color: colors.subForeground, fontSize: 16 * fontScale, lineHeight: 26 * fontScale }]}>
+                {node.theoryContent}
+              </Text>
+            )}
+            {node.theoryKeyPoints && node.theoryKeyPoints.length > 0 && (
+              <View style={[styles.keyPoints, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.keyPointsTitle, { color: colors.foreground, fontSize: 14 * fontScale }]}>
+                  Ключевые формулы
                 </Text>
+                {node.theoryKeyPoints.map((kp, i) => (
+                  <View key={i} style={styles.keyPointRow}>
+                    <View style={[styles.keyPointDot, { backgroundColor: colors.primary }]} />
+                    <Text style={[styles.keyPointText, { color: colors.subForeground, fontSize: 14 * fontScale, lineHeight: 20 * fontScale }]}>
+                      {kp}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
+            )}
+          </>
         )}
       </ScrollView>
 

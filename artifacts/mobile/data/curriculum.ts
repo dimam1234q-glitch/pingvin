@@ -1,5 +1,11 @@
 export type NodeType = "theory" | "miniQuiz" | "practice" | "boss";
 
+export type TheoryBlock =
+  | { type: "paragraph"; text: string }
+  | { type: "definition"; term: string; text: string; color?: string; examples?: string[] }
+  | { type: "note"; text: string }
+  | { type: "formula"; text: string };
+
 export type QuestionType = "multipleChoice" | "fillBlank" | "trueOrFalse" | "arrange";
 
 export interface Question {
@@ -30,6 +36,7 @@ export interface LessonNode {
   theoryTitle?: string;
   theoryContent?: string;
   theoryKeyPoints?: string[];
+  theoryBlocks?: TheoryBlock[];
   videoUrl?: string;
   questions?: Question[];
   xpReward: number;
@@ -63,14 +70,37 @@ export const chapters: Chapter[] = [
         iconName: "book-open",
         theoryTitle: "Обыкновенные дроби: виды",
         videoUrl: "https://vkvideo.ru/video_ext.php?oid=-230639258&id=456239040&hash=fb4b2a31e3656ce9&hd=4",
-        theoryContent:
-          "Обыкновенная дробь — это дробь вида a/b, где a — числитель, b — знаменатель. Дробь показывает часть от целого: знаменатель — на сколько частей разделили, числитель — сколько частей взяли. Черта дроби — это знак деления, т.е. a/b можно записать как a : b.\n\nПравильная дробь — числитель меньше знаменателя. Например: 3/4, 15/22.\n\nНеправильная дробь — числитель больше или равен знаменателю. Например: 14/9, 13/7, 6/6.\n\nСмешанная дробь — имеет целую и дробную часть. Например: 2 3/5, 3 7/8.\n\nЛюбую неправильную дробь можно записать в виде смешанной и наоборот.",
-        theoryKeyPoints: [
-          "a/b: a — числитель, b — знаменатель",
-          "Правильная дробь: числитель < знаменателя",
-          "Неправильная дробь: числитель ≥ знаменателя",
-          "Смешанная дробь = целая часть + дробная часть",
-          "Черта дроби = знак деления: a/b = a : b",
+        theoryBlocks: [
+          {
+            type: "paragraph",
+            text: "Обыкновенная дробь — это запись вида a/b, где a — числитель (сколько частей взяли), b — знаменатель (на сколько частей разделили целое). Черта дроби означает деление.",
+          },
+          {
+            type: "formula",
+            text: "a / b = a ÷ b",
+          },
+          {
+            type: "definition",
+            term: "Правильная дробь",
+            text: "Числитель меньше знаменателя. Такая дробь всегда меньше 1.",
+            examples: ["3/4", "15/22", "7/9"],
+          },
+          {
+            type: "definition",
+            term: "Неправильная дробь",
+            text: "Числитель больше или равен знаменателю. Такая дробь ≥ 1.",
+            examples: ["14/9", "13/7", "6/6"],
+          },
+          {
+            type: "definition",
+            term: "Смешанная дробь",
+            text: "Состоит из целой части и правильной дроби — это другая форма записи неправильной дроби.",
+            examples: ["2 3/5", "3 7/8", "1 1/2"],
+          },
+          {
+            type: "note",
+            text: "Любую неправильную дробь можно перевести в смешанную и наоборот — эти записи равноценны.",
+          },
         ],
         xpReward: 10,
       },
